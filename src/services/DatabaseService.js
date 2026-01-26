@@ -52,18 +52,18 @@ export const addPatient = async (patient) => {
   return result.lastInsertRowId;
 };
 
-export const addScan = async (patientId, audioUri, diagnosis, severityScore, confidenceScore, status, triageAdvice = '') => {
+export const addScan = async (patientId, audioUri, diagnosis, severityScore, confidenceScore, status, triageAdvice = '', heartRate = null) => {
   const database = await getDB();
   // Insert scan
   await database.runAsync(
-    `INSERT INTO scans (patient_id, audio_uri, diagnosis, severity_score, confidence_score, status) VALUES (?, ?, ?, ?, ?, ?);`,
-    [patientId, audioUri, diagnosis, severityScore, confidenceScore, status]
+    `INSERT INTO scans (patient_id, audio_uri, diagnosis, severity_score, confidence_score, status, heart_rate) VALUES (?, ?, ?, ?, ?, ?, ?);`,
+    [patientId, audioUri, diagnosis, severityScore, confidenceScore, status, heartRate]
   );
 
-  // Update patient's latest scores and triage advice
+  // Update patient's latest scores, triage advice, and heart rate
   await database.runAsync(
-    `UPDATE patients SET severity_score = ?, confidence_score = ?, triage_advice = ? WHERE id = ?;`,
-    [severityScore, confidenceScore, triageAdvice, patientId]
+    `UPDATE patients SET severity_score = ?, confidence_score = ?, triage_advice = ?, heart_rate = ? WHERE id = ?;`,
+    [severityScore, confidenceScore, triageAdvice, heartRate, patientId]
   );
 };
 

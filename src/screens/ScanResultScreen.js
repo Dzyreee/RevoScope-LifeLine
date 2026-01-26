@@ -232,6 +232,7 @@ export default function ScanResultScreen({ route, navigation }) {
             confidence_score: Math.floor(data.confidence),
             esi_level: data.esiLevel,
             recommendation: data.recommendation,
+            heart_rate: data.heartRate,
             status: data.esiLevel <= 2 ? 'Critical' : data.esiLevel <= 3 ? 'Monitoring' : 'Normal'
         };
 
@@ -246,7 +247,8 @@ export default function ScanResultScreen({ route, navigation }) {
             scanResult.severity_score,
             scanResult.confidence_score,
             scanResult.status,
-            data.recommendation
+            data.recommendation,
+            data.heartRate
         );
         await refreshDashboard();
     };
@@ -284,6 +286,7 @@ export default function ScanResultScreen({ route, navigation }) {
             confidence_score: Math.floor(confidence),
             esi_level: esiLevel,
             recommendation: triageAdvice,
+            heart_rate: null,
             status: esiLevel <= 2 ? 'Critical' : esiLevel <= 3 ? 'Monitoring' : 'Normal'
         };
 
@@ -298,7 +301,8 @@ export default function ScanResultScreen({ route, navigation }) {
             severity,
             Math.floor(confidence),
             scanResult.status,
-            triageAdvice
+            triageAdvice,
+            null
         );
         await refreshDashboard();
     };
@@ -409,7 +413,18 @@ export default function ScanResultScreen({ route, navigation }) {
                 {/* AI Diagnosis */}
                 <View className="bg-white p-5 rounded-2xl border border-gray-100 mb-3">
                     <Text className="text-xs font-bold text-gray-400 uppercase mb-2">AI Diagnosis</Text>
-                    <Text className="text-2xl font-bold text-gray-800">{result.diagnosis}</Text>
+                    <View className="flex-row justify-between items-start">
+                        <View className="flex-1">
+                            <Text className="text-2xl font-bold text-gray-800">{result.diagnosis}</Text>
+                        </View>
+                        {result.heart_rate && (
+                            <View className="bg-blue-50 px-3 py-2 rounded-lg items-center">
+                                <Text className="text-xs font-bold text-blue-600 uppercase mb-1">Heart Rate</Text>
+                                <Text className="text-lg font-bold text-blue-600">{result.heart_rate}</Text>
+                                <Text className="text-xs text-blue-500">BPM</Text>
+                            </View>
+                        )}
+                    </View>
                     <Text className="text-sm text-gray-500 mt-2 leading-5">
                         {result.diagnosis === 'Normal'
                             ? 'Normal vesicular breath sounds detected. No adventitious sounds identified. Breath sounds are clear and symmetric.'

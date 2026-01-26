@@ -41,7 +41,8 @@ export const analyzeAudio = async (audioUri) => {
                 esiLevel: result.esi_level,
                 esiName: result.esi_name,
                 recommendation: result.recommendation,
-                probabilities: result.all_probabilities
+                probabilities: result.all_probabilities,
+                heartRate: result.heart_rate
             }
         };
     } catch (error) {

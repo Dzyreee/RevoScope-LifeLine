@@ -13,6 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import librosa
 from scipy.ndimage import zoom
+from scipy.signal import butter, filtfilt, find_peaks
 from pathlib import Path
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -128,6 +129,64 @@ def extract_features_fast(audio_path):
     return features[:, :TARGET_SIZE, :TARGET_SIZE]
 
 
+def detect_heart_rate(audio_path, sr=SAMPLE_RATE):
+    """Detect heart rate from audio using FFT and bandpass filtering."""
+    try:
+        # Load audio
+        y, _ = librosa.load(audio_path, sr=sr, duration=DURATION)
+        
+        # Bandpass filter for heartbeat frequencies (60-200 BPM = 1-3.33 Hz)
+        # But we also capture up to 200 Hz in case of transients
+        nyquist = sr / 2
+        low_freq = 0.5  # 30 BPM minimum
+        high_freq = 3.5  # 210 BPM maximum
+        low = low_freq / nyquist
+        high = high_freq / nyquist
+        
+        # Ensure valid filter parameters
+        low = max(0.001, min(low, 0.999))
+        high = max(low + 0.001, min(high, 0.999))
+        
+        b, a = butter(4, [low, high], btype='band')
+        y_filtered = filtfilt(b, a, y)
+        
+        # Compute power spectral density
+        freqs = np.fft.rfftfreq(len(y_filtered), d=1/sr)
+        spectrum = np.abs(np.fft.rfft(y_filtered)) ** 2
+        
+        # Focus on heartbeat frequency range (0.5-3.5 Hz = 30-210 BPM)
+        freq_mask = (freqs >= 0.5) & (freqs <= 3.5)
+        freqs_masked = freqs[freq_mask]
+        spectrum_masked = spectrum[freq_mask]
+        
+        if len(spectrum_masked) == 0:
+            return None
+        
+        # Find dominant frequency
+        peaks, properties = find_peaks(spectrum_masked, height=0)
+        
+        if len(peaks) == 0:
+            # No peaks found, use global maximum
+            dominant_idx = np.argmax(spectrum_masked)
+        else:
+            # Get peak with highest power
+            peak_heights = properties['peak_heights']
+            dominant_idx = peaks[np.argmax(peak_heights)]
+        
+        dominant_freq = freqs_masked[dominant_idx]
+        heart_rate = int(round(dominant_freq * 60))  # Convert Hz to BPM
+        
+        # Validate heart rate (realistic range)
+        if 40 <= heart_rate <= 200:
+            return heart_rate
+        else:
+            return None
+            
+    except Exception as e:
+        print(f"Heart rate detection error: {e}")
+        return None
+
+
 def load_model():
     """Load model with optimizations."""
     global model, device
@@ -188,6 +247,7 @@ class AnalysisResponse(BaseModel):
     esi_level: int
     esi_name: str
     recommendation: str
+    heart_rate: int | None = None
 
 
 @app.get("/health")
@@ -210,6 +270,10 @@ async def analyze_audio(audio: UploadFile = File(...)):
     try:
         # Extract features
         features = extract_features_fast(tmp_path)
+        
+        # Detect heart rate
+        heart_rate = detect_heart_rate(tmp_path)
+        print(f"DEBUG: Detected heart_rate = {heart_rate}")
         
         # Inference
         x = torch.from_numpy(features).unsqueeze(0).to(device)
@@ -255,7 +319,8 @@ async def analyze_audio(audio: UploadFile = File(...)):
             severity_score=severity,
             esi_level=esi_level,
             esi_name=esi_names[esi_level],
-            recommendation=recommendations[esi_level]
+            recommendation=recommendations[esi_level],
+            heart_rate=heart_rate
         )
     finally:
         os.unlink(tmp_path)

@@ -51,7 +51,7 @@ export default function PatientDetailScreen({ route, navigation }) {
     if (!history) return <View className="flex-1 bg-white" />;
 
     const { patient, scans } = history;
-    const { full_name, age, sex, history: medicalHistory, profile_image, severity_score, confidence_score } = patient;
+    const { full_name, age, sex, history: medicalHistory, profile_image, severity_score, confidence_score, heart_rate } = patient;
 
     // Severity Color Logic
     let severityColor = "#10B981";
@@ -137,6 +137,13 @@ export default function PatientDetailScreen({ route, navigation }) {
                         <Text className="text-xs font-bold uppercase tracking-wider mb-1 text-gray-400">Confidence</Text>
                         <Text className="text-3xl font-bold text-gray-700">{confidence_score}%</Text>
                     </View>
+                    {heart_rate && (
+                        <View className="flex-1 p-4 rounded-xl bg-blue-50 border border-blue-200 items-center">
+                            <Text className="text-xs font-bold uppercase tracking-wider mb-1 text-blue-500">Heart Rate</Text>
+                            <Text className="text-3xl font-bold text-blue-600">{heart_rate}</Text>
+                            <Text className="text-xs text-blue-500">BPM</Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* New Scan Button */}
