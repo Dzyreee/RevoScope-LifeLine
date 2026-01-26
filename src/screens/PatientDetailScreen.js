@@ -209,9 +209,20 @@ export default function PatientDetailScreen({ route, navigation }) {
                             <View key={scan.id} className="bg-white p-4 mb-3 rounded-xl border border-gray-100 flex-row justify-between items-center">
                                 <View>
                                     <Text className="font-bold text-gray-700 text-base">{scan.diagnosis}</Text>
-                                    <Text className="text-xs text-gray-400 mt-1">{new Date(scan.timestamp).toLocaleString()}</Text>
+                                    <View className="flex-row items-center gap-2 mt-1">
+                                        <Text className="text-xs text-gray-400">{new Date(scan.timestamp).toLocaleString()}</Text>
+                                        {scan.heart_rate && (
+                                            <View className="flex-row items-center bg-blue-50 px-1.5 py-0.5 rounded">
+                                                <Ionicons name="heart" size={8} color="#3B82F6" />
+                                                <Text className="text-xs text-blue-600 font-bold ml-1">{scan.heart_rate}</Text>
+                                            </View>
+                                        )}
+                                    </View>
                                 </View>
-                                <Text className="font-bold text-gray-500 text-lg">{scan.severity_score}%</Text>
+                                <View className="items-end">
+                                    <Text className="font-bold text-gray-500 text-lg">{scan.severity_score}%</Text>
+                                    <Text className="text-[10px] text-gray-400 font-bold uppercase">Severity</Text>
+                                </View>
                             </View>
                         ))
                     )}

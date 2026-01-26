@@ -36,6 +36,7 @@ export const initDB = async () => {
       severity_score INTEGER,
       confidence_score INTEGER,
       status TEXT, -- 'Critical', 'Monitoring', 'Normal'
+      heart_rate INTEGER,
       timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
     );
@@ -122,7 +123,8 @@ export const getDashboardStats = async () => {
 export const resetDB = async () => {
   const database = await getDB();
   await database.execAsync(`
-    DELETE FROM scans;
-    DELETE FROM patients;
+    DROP TABLE IF EXISTS scans;
+    DROP TABLE IF EXISTS patients;
   `);
+  await initDB();
 };

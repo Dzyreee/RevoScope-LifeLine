@@ -280,13 +280,21 @@ export default function ScanResultScreen({ route, navigation }) {
 
         const triageAdvice = recommendations[esiLevel];
 
+        // Generate simulated heart rate based on severity
+        // Higher severity often correlates with higher heart rate (tachycardia)
+        let baseHr = 75;
+        if (severity > 70) baseHr = 110;
+        else if (severity > 40) baseHr = 95;
+
+        const simulatedHeartRate = Math.floor(baseHr + (Math.random() * 20 - 10));
+
         const scanResult = {
             diagnosis: classification === 'Both' ? 'Crackles + Wheezes' : classification,
             severity_score: severity,
             confidence_score: Math.floor(confidence),
             esi_level: esiLevel,
             recommendation: triageAdvice,
-            heart_rate: null,
+            heart_rate: simulatedHeartRate,
             status: esiLevel <= 2 ? 'Critical' : esiLevel <= 3 ? 'Monitoring' : 'Normal'
         };
 
@@ -302,7 +310,7 @@ export default function ScanResultScreen({ route, navigation }) {
             Math.floor(confidence),
             scanResult.status,
             triageAdvice,
-            null
+            simulatedHeartRate
         );
         await refreshDashboard();
     };
