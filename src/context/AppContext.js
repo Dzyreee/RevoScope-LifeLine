@@ -1,74 +1,56 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import { initDB, getPatients, addPatient as addPatientToDB, updatePatientCategory } from '../services/DatabaseService';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import * as DB from '../services/DatabaseService';
 
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
+    const [dashboardStats, setDashboardStats] = useState({ total: 0, critical: 0, monitoring: 0, normal: 0 });
     const [patients, setPatients] = useState([]);
-    const [audioSource, setAudioSource] = useState('internal'); // 'internal' | 'external'
-    const [isLoading, setIsLoading] = useState(true);
+    const [loading, setLoading] = useState(true);
+
+    const refreshDashboard = async () => {
+        try {
+            setLoading(true);
+            const stats = await DB.getDashboardStats();
+            const allPatients = await DB.getPatients();
+            setDashboardStats(stats);
+            setPatients(allPatients);
+            setLoading(false);
+        } catch (e) {
+            console.error("Dashboard refresh error", e);
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const loadData = async () => {
-            try {
-                await initDB();
-                const storedPatients = await getPatients();
-                setPatients(storedPatients);
-            } catch (error) {
-                console.error("Failed to init DB or load patients", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        loadData();
+        (async () => {
+            await DB.initDB();
+            await refreshDashboard();
+        })();
     }, []);
 
-    const refreshPatients = async () => {
+    const resetDatabase = async () => {
         try {
-            const storedPatients = await getPatients();
-            setPatients(storedPatients);
-        } catch (error) {
-            console.error("Failed to refresh patients", error);
+            await DB.resetDB();
+            await refreshDashboard();
+        } catch (e) {
+            console.error("Reset database error", e);
         }
     };
-
-    const notifyScanComplete = async (patientId, diagnosticResult) => {
-        // Logic to update patient with scan result could go here
-        // For now we might just want to refresh
-        await refreshPatients();
-    };
-
-    const addNewPatient = async (patientData) => {
-        try {
-            await addPatientToDB(patientData);
-            await refreshPatients();
-        } catch (error) {
-            console.error("Failed to add patient", error);
-            throw error;
-        }
-    }
-
-    const movePatientToCategory = async (patientId, category) => {
-        try {
-            await updatePatientCategory(patientId, category);
-            await refreshPatients();
-        } catch (error) {
-            console.error("Failed to move patient", error);
-        }
-    }
 
     return (
-        <AppContext.Provider
-            value={{
-                patients,
-                isLoading,
-                addNewPatient,
-                refreshPatients,
-                audioSource,
-                setAudioSource,
-                movePatientToCategory
-            }}
-        >
+        <AppContext.Provider value={{
+            dashboardStats,
+            patients,
+            loading,
+            refreshDashboard,
+            resetDatabase,
+            createPatient: DB.addPatient,
+            updatePatient: DB.updatePatient,
+            recordScan: DB.addScan,
+            deletePatient: DB.deletePatient,
+            getHistory: DB.getPatientHistory
+        }}>
             {children}
         </AppContext.Provider>
     );

@@ -4,7 +4,7 @@ let db;
 
 const getDB = async () => {
   if (!db) {
-    db = await SQLite.openDatabaseAsync('soundscope.db');
+    db = await SQLite.openDatabaseAsync('revoscope.db');
   }
   return db;
 };
@@ -12,54 +12,116 @@ const getDB = async () => {
 export const initDB = async () => {
   const database = await getDB();
   await database.execAsync(`
+    PRAGMA foreign_keys = ON;
+
     CREATE TABLE IF NOT EXISTS patients (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      photo_uri TEXT,
-      dob TEXT,
-      estimated_age INTEGER,
-      chief_complaint TEXT,
-      triage_category TEXT DEFAULT 'P3',
-      last_scan_result TEXT,
+      full_name TEXT NOT NULL,
+      age INTEGER,
+      sex TEXT,
+      history TEXT,
+      profile_image TEXT,
+      severity_score INTEGER DEFAULT 0,
+      confidence_score INTEGER DEFAULT 0,
+      triage_advice TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS scans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_id INTEGER,
+      audio_uri TEXT,
+      diagnosis TEXT,
+      severity_score INTEGER,
+      confidence_score INTEGER,
+      status TEXT, -- 'Critical', 'Monitoring', 'Normal'
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
     );
   `);
 };
 
 export const addPatient = async (patient) => {
-  const { name, photo_uri, dob, estimated_age, chief_complaint, triage_category, last_scan_result } = patient;
+  const { full_name, age, sex, history, profile_image, severity_score, confidence_score, triage_advice } = patient;
   const database = await getDB();
   const result = await database.runAsync(
-    `INSERT INTO patients (name, photo_uri, dob, estimated_age, chief_complaint, triage_category, last_scan_result) VALUES (?, ?, ?, ?, ?, ?, ?);`,
-    [name, photo_uri, dob, estimated_age, chief_complaint, triage_category || 'P3', last_scan_result || '']
+    `INSERT INTO patients (full_name, age, sex, history, profile_image, severity_score, confidence_score, triage_advice) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+    [full_name, age, sex, history, profile_image, severity_score || 0, confidence_score || 0, triage_advice || '']
   );
-  return result;
+  return result.lastInsertRowId;
+};
+
+export const addScan = async (patientId, audioUri, diagnosis, severityScore, confidenceScore, status, triageAdvice = '') => {
+  const database = await getDB();
+  // Insert scan
+  await database.runAsync(
+    `INSERT INTO scans (patient_id, audio_uri, diagnosis, severity_score, confidence_score, status) VALUES (?, ?, ?, ?, ?, ?);`,
+    [patientId, audioUri, diagnosis, severityScore, confidenceScore, status]
+  );
+
+  // Update patient's latest scores and triage advice
+  await database.runAsync(
+    `UPDATE patients SET severity_score = ?, confidence_score = ?, triage_advice = ? WHERE id = ?;`,
+    [severityScore, confidenceScore, triageAdvice, patientId]
+  );
 };
 
 export const getPatients = async () => {
   const database = await getDB();
-  const allRows = await database.getAllAsync(
-    `SELECT * FROM patients ORDER BY created_at DESC;`
-  );
-  return allRows;
+  return await database.getAllAsync(`SELECT * FROM patients ORDER BY severity_score DESC, created_at DESC`);
 };
 
-export const deletePatient = async (id) => {
+export const getPatientHistory = async (patientId) => {
   const database = await getDB();
-  const result = await database.runAsync(
-    `DELETE FROM patients WHERE id = ?;`,
-    [id]
+  const patient = await database.getFirstAsync(`SELECT * FROM patients WHERE id = ?`, [patientId]);
+  const scans = await database.getAllAsync(`SELECT * FROM scans WHERE patient_id = ? ORDER BY timestamp DESC`, [patientId]);
+  return { patient, scans };
+};
+
+export const deletePatient = async (patientId) => {
+  const database = await getDB();
+  await database.runAsync(`DELETE FROM patients WHERE id = ?`, [patientId]);
+  await database.runAsync(`DELETE FROM scans WHERE patient_id = ?`, [patientId]);
+};
+
+export const updatePatient = async (patientId, updates) => {
+  const { full_name, age, sex, history, profile_image } = updates;
+  const database = await getDB();
+  await database.runAsync(
+    `UPDATE patients SET full_name = ?, age = ?, sex = ?, history = ?, profile_image = ? WHERE id = ?`,
+    [full_name, age, sex, history, profile_image, patientId]
   );
-  return result;
 };
 
 
-
-export const updatePatientCategory = async (id, category) => {
+// Summary stats for dashboard
+export const getDashboardStats = async () => {
   const database = await getDB();
-  const result = await database.runAsync(
-    `UPDATE patients SET triage_category = ? WHERE id = ?;`,
-    [category, id]
-  );
-  return result;
+  // Count based on status in scans? Or based on current severity_score thresholds?
+  // Using scans status for now as it's explicit.
+  // Actually, dashboard usually counts unique patients in each category.
+  // Let's assume patients category is derived from their latest severity.:
+  // Critical > 70, Monitoring > 30, Normal <= 30
+
+  const patients = await database.getAllAsync(`SELECT severity_score FROM patients`);
+
+  let critical = 0;
+  let monitoring = 0;
+  let normal = 0;
+
+  patients.forEach(p => {
+    if (p.severity_score >= 70) critical++;
+    else if (p.severity_score >= 30) monitoring++;
+    else normal++;
+  });
+
+  return { total: patients.length, critical, monitoring, normal };
+};
+
+export const resetDB = async () => {
+  const database = await getDB();
+  await database.execAsync(`
+    DELETE FROM scans;
+    DELETE FROM patients;
+  `);
 };

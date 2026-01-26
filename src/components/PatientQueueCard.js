@@ -1,0 +1,52 @@
+import React from 'react';
+import { View, Text, Image, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+export default function PatientQueueCard({ patient, onPress }) {
+    const { full_name, profile_image, severity_score, confidence_score } = patient;
+
+    // Severity color logic
+    let severityColor = "#10B981"; // Green
+    let severityBg = "bg-emerald-50";
+    if (severity_score >= 70) {
+        severityColor = "#DC2626";
+        severityBg = "bg-red-50";
+    } else if (severity_score >= 30) {
+        severityColor = "#F59E0B";
+        severityBg = "bg-amber-50";
+    }
+
+    return (
+        <TouchableOpacity
+            onPress={onPress}
+            className="flex-row items-center p-4 mb-3 bg-white rounded-2xl border border-gray-100 shadow-sm"
+        >
+            {/* Profile Image */}
+            <View className="h-14 w-14 rounded-full bg-gray-100 overflow-hidden items-center justify-center mr-4">
+                {profile_image ? (
+                    <Image source={{ uri: profile_image }} className="h-full w-full" />
+                ) : (
+                    <Ionicons name="person" size={24} color="#9CA3AF" />
+                )}
+            </View>
+
+            {/* Info */}
+            <View className="flex-1">
+                <Text className="text-lg font-bold text-gray-800">{full_name}</Text>
+                <View className="flex-row items-center mt-1">
+                    <View className="bg-gray-100 px-2 py-0.5 rounded-full">
+                        <Text className="text-xs font-medium text-gray-500">Conf: {confidence_score}%</Text>
+                    </View>
+                </View>
+            </View>
+
+            {/* Severity Score */}
+            <View className={`items-center px-4 py-2 rounded-xl ${severityBg}`}>
+                <Text className="text-xs font-bold text-gray-500 mb-0.5">SEVERITY</Text>
+                <Text className="text-2xl font-bold" style={{ color: severityColor }}>
+                    {severity_score}%
+                </Text>
+            </View>
+        </TouchableOpacity>
+    );
+}
