@@ -1,3 +1,10 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Web-specific fix for white screen issue */
+@media (min-width: 0px) {
+  html, body, #root {
+    height: 100%;
+  }
+}

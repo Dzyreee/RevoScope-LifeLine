@@ -21,6 +21,7 @@ export const initDB = async () => {
       sex TEXT,
       history TEXT,
       profile_image TEXT,
+      heart_rate INTEGER,
       severity_score INTEGER DEFAULT 0,
       confidence_score INTEGER DEFAULT 0,
       triage_advice TEXT,
@@ -42,11 +43,11 @@ export const initDB = async () => {
 };
 
 export const addPatient = async (patient) => {
-  const { full_name, age, sex, history, profile_image, severity_score, confidence_score, triage_advice } = patient;
+  const { full_name, age, sex, history, profile_image, heart_rate, severity_score, confidence_score, triage_advice } = patient;
   const database = await getDB();
   const result = await database.runAsync(
-    `INSERT INTO patients (full_name, age, sex, history, profile_image, severity_score, confidence_score, triage_advice) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
-    [full_name, age, sex, history, profile_image, severity_score || 0, confidence_score || 0, triage_advice || '']
+    `INSERT INTO patients (full_name, age, sex, history, profile_image, heart_rate, severity_score, confidence_score, triage_advice) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    [full_name, age, sex, history, profile_image, heart_rate || null, severity_score || 0, confidence_score || 0, triage_advice || '']
   );
   return result.lastInsertRowId;
 };
@@ -85,11 +86,11 @@ export const deletePatient = async (patientId) => {
 };
 
 export const updatePatient = async (patientId, updates) => {
-  const { full_name, age, sex, history, profile_image } = updates;
+  const { full_name, age, sex, history, profile_image, heart_rate } = updates;
   const database = await getDB();
   await database.runAsync(
-    `UPDATE patients SET full_name = ?, age = ?, sex = ?, history = ?, profile_image = ? WHERE id = ?`,
-    [full_name, age, sex, history, profile_image, patientId]
+    `UPDATE patients SET full_name = ?, age = ?, sex = ?, history = ?, profile_image = ?, heart_rate = ? WHERE id = ?`,
+    [full_name, age, sex, history, profile_image, heart_rate || null, patientId]
   );
 };
 
