@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -77,7 +77,8 @@ export default function LoginScreen({ navigation }) {
         <Text style={styles.subtitle}>{isSignUp ? 'Create your account' : 'Sign in to continue'}</Text>
 
         <TextInput
-          placeholder="Email"
+          placeholder="Enter email"
+          placeholderTextColor="#9CA3AF"
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -86,7 +87,8 @@ export default function LoginScreen({ navigation }) {
         />
 
         <TextInput
-          placeholder="Password"
+          placeholder="Enter password"
+          placeholderTextColor="#9CA3AF"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -117,7 +119,11 @@ export default function LoginScreen({ navigation }) {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.googleButton} onPress={handleGoogleSignIn}>
-          <Ionicons name="logo-google" size={20} color="#DB4437" />
+          <Image 
+            source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/500px-Google_%22G%22_logo.svg.png' }}
+            style={{ width: 24, height: 24, marginRight: 8 }}
+            resizeMode="contain"
+          />
           <Text style={styles.googleButtonText}>Sign in with Google</Text>
         </TouchableOpacity>
 
@@ -136,7 +142,7 @@ export default function LoginScreen({ navigation }) {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.link} onPress={handleGuest}>
-          <Text style={styles.linkText}>Continue as Guest</Text>
+          <Text style={styles.linkText}>Continue Offline</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

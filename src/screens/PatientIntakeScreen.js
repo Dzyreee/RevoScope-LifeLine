@@ -18,8 +18,7 @@ export default function PatientIntakeScreen({ route, navigation }) {
     const [age, setAge] = useState(existingData?.age?.toString() || '');
     const [sex, setSex] = useState(existingData?.sex || null);
     const [history, setHistory] = useState(existingData?.history || '');
-    const [photo, setPhoto] = useState(existingData?.profile_image || null);
-    const [heartRate, setHeartRate] = useState(existingData?.heart_rate?.toString() || '');
+    const [photo, setPhoto] = useState(existingData?.profile_image || '');
 
     // Validation states
     const isNameTooLong = fullName.length > MAX_NAME_LENGTH;
@@ -110,7 +109,6 @@ export default function PatientIntakeScreen({ route, navigation }) {
                 sex,
                 history: history.trim(),
                 profile_image: photo,
-                heart_rate: heartRate ? parseInt(heartRate) : null,
             };
 
             if (editMode && existingData?.id) {
@@ -216,20 +214,6 @@ export default function PatientIntakeScreen({ route, navigation }) {
                             </TouchableOpacity>
                         </View>
                     </View>
-                </View>
-
-                {/* Heart Rate */}
-                <View className="mb-6">
-                    <Text className="text-sm font-bold text-gray-600 mb-2">HEART RATE (BPM)</Text>
-                    <TextInput
-                        className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-gray-800 text-base"
-                        placeholder="e.g. 72"
-                        placeholderTextColor="#9CA3AF"
-                        keyboardType="numeric"
-                        maxLength={3}
-                        value={heartRate}
-                        onChangeText={(text) => setHeartRate(text.replace(/[^0-9]/g, ''))}
-                    />
                 </View>
 
                 {/* Medical History */}
