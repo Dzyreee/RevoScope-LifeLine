@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Modal, Animated, Image } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -107,7 +108,7 @@ export default function DashboardScreen({ navigation }) {
 
             {/* Header */}
             <View className="pt-16 px-6 pb-4 bg-white border-b border-gray-100 flex-row justify-between items-center">
-                <Image source={logoImage} style={{ width: 180, height: 50 }} resizeMode="contain" />
+                <Image source={logoImage} style={{ width: 280, height: 90 }} resizeMode="contain" />
                 <View className="flex-row items-center gap-2">
                     {filter && (
                         <TouchableOpacity
@@ -128,6 +129,19 @@ export default function DashboardScreen({ navigation }) {
                         onPress={() => setShowSettings(true)}
                     >
                         <Ionicons name="settings-outline" size={24} color="#374151" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        className="h-11 w-11 bg-gray-100 rounded-full items-center justify-center ml-2"
+                        onPress={async () => {
+                            try {
+                                await AsyncStorage.removeItem('userToken');
+                            } catch (e) {
+                                console.error('Failed to clear userToken', e);
+                            }
+                            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+                        }}
+                    >
+                        <Ionicons name="log-out-outline" size={22} color="#374151" />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -272,6 +286,22 @@ export default function DashboardScreen({ navigation }) {
                             onPress={() => setShowSettings(false)}
                         >
                             <Text className="text-white font-bold text-lg">Done</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            className="bg-red-100 py-4 rounded-xl items-center mt-3 flex-row justify-center"
+                            onPress={async () => {
+                                try {
+                                    await AsyncStorage.removeItem('userToken');
+                                } catch (e) {
+                                    console.error('Failed to clear userToken', e);
+                                }
+                                setShowSettings(false);
+                                navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+                            }}
+                        >
+                            <Ionicons name="log-out-outline" size={20} color="#DC2626" />
+                            <Text className="text-red-600 font-bold text-lg ml-2">Logout</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
