@@ -2,59 +2,134 @@
 
 **LifeLines Hackathon 2026** | **Problem Statement:** HPS#3 - AI-Augmented Emergency Triage
 
+RevoScope is a force-multiplier for frontline clinics in high-casualty crisis events. It's a comprehensive diagnostic platform designed for use by volunteers and non-medical staff to perform rapid, AI-augmented heart-and-lung scans for effective patient triage.
+
+---
+
 ## 🚩 The Problem: The "Expert Gap"
-In high-casualty crisis events (earthquakes, floods, conflict), the ratio of patients to medical professionals is dangerously imbalanced. Doctors are often tied up with surgery or critical interventions, leaving a massive queue of unscreened patients. 
+In disasters (earthquakes, floods, conflict), doctors are overwhelmed. Critical time is lost while patients wait for an initial screening. RevoScope bridges this gap by empowering volunteers with expert-level diagnostic tools.
 
-## 💡 The Solution: RevoScope
-**RevoScope** is a force-multiplier for frontline clinics. It is a web-based (moving to mobile) diagnostic platform designed to be used by **volunteers or non-medical staff**. 
+## 💡 The Solution: AI-Powered Triage
+RevoScope combines a low-cost hardware acoustic sensor with a sophisticated AI backend to classify respiratory pathologies and measure vitals in under 30 seconds.
 
-By using the RevoScope (hardware) and our AI analysis (software), a volunteer can perform a comprehensive 30-second heart-and-lung scan. This allows for rapid patient sorting (triage), ensuring that by the time a doctor is available, they already have a digital "heads-up" on the patient's condition.
+---
+
+## 🏗️ Architecture & Tech Stack
+
+### System Overview
+```mermaid
+graph TD
+    A[RevoScope Hardware] -->|Analog Audio| B[Mobile App - Expo/React Native]
+    B -->|WAV Upload| C[Backend API - FastAPI]
+    C -->|EfficientNet-B2 + LSTM| D[AI Inference Engine]
+    C -->|Signal Processing| E[Vitals Extraction]
+    D -->|Classification| B
+    E -->|BPM| B
+    B -->|Local Storage| F[SQLite Database]
+```
+
+### Technology Stack
+- **Frontend**: React Native (Expo), NativeWind (Tailwind CSS), React Navigation, Expo-AV, Expo-SQLite.
+- **Backend**: Python 3.9+, FastAPI, PyTorch (TorchVision), Librosa (Audio Processing), NumPy, Pandas.
+- **AI Model**: Optimized EfficientNet-B2 backbone combined with an LSTM layer and Attention mechanism for temporal audio feature analysis.
 
 ---
 
 ## ✨ Key Capabilities
 
 ### 1. 🧠 AI Lung Pathology Detection
-The software receives audio from the RevoScope and uses a Convolutional Neural Network (CNN) to detect patterns associated with:
-- **Pneumonia & Infection:** (Fine/Coarse Crackles)
-- **Asthma & Airway Distress:** (Wheezing)
-- **Trauma-Induced Lung Collapse:** (Absence of breath sounds)
-- **Bronchitis:** (Rhonchi)
-- Etc.
-
-
+The system uses a Convolutional Neural Network (CNN) to detect:
+- **Pneumonia & Infection**: Fine/Coarse Crackles.
+- **Asthma & Airway Distress**: Wheezing.
+- **Trauma-Induced Lung Collapse**: Absence of breath sounds.
+- **Bronchitis**: Rhonchi.
 
 ### 2. 💓 Integrated Heart Rate (BPM)
-Using digital signal processing, RevoScope extracts a patient's heart rate from the same recording:
-- **Low-Pass Filtering:** Isolates the 20Hz–150Hz range to "hear" the heart through the lungs.
-- **Peak Counting:** Calculates real-time BPM to detect shock or distress (Tachycardia).
+Digital signal processing extracts BPM from the acoustic recording:
+- **Bandpass Filtering**: Isolates the 20Hz–150Hz heart sound range.
+- **Peak Detection**: Calculates real-time BPM to detect shock (Tachycardia/Bradycardia).
 
-### 3. 🚦 Automated Triage Ranking
-The app provides an immediate, color-coded priority status:
-- 🟢 **GREEN (Stable):** Normal vitals. Volunteer continues monitoring.
-- 🟡 **YELLOW (Observation):** Minor issues detected (e.g., wheezing). Queue for doctor review.
-- 🔴 **RED (Critical):** Life-threatening sounds or extreme heart rate. Immediate doctor intervention required.
-
----
-
-## 🛠️ The Hardware: RevoScope
-The RevoScope is an original, low-cost acoustic sensor designed for rugged use.
-- **Components:** High-sensitivity capacitive microphone + 3D-printed/recycled rigid acoustic chamber.
-- **Design Philosophy:** Optimized for digital sensors rather than human ears, allowing for better AI accuracy in noisy field hospitals.
-- **Cost:** <$10 USD per unit, making it logistically feasible for mass distribution.
+### 3. 🚦 Automated Triage Ranking (ESI-Based)
+The app provides immediate, color-coded priority based on the Emergency Severity Index:
+- 🔴 **RED (Critical)**: Life-threatening sounds or extreme heart rate.
+- 🟡 **YELLOW (Observation)**: Issues detected (e.g., wheezing). Queue for review.
+- 🟢 **GREEN (Stable)**: Normal vitals.
 
 ---
 
 ## 📁 Repository Structure
-- `/app`: Logic flow and UI interface (Base44).
-- `/hardware`: STL files and internal assembly diagrams for the RevoScope.
-- `/model`: AI classification logic and frequency mapping documentation.
-- `/test-samples`: Verified clinical audio files for Pneumonia, Wheezing, and Normal lungs.
+```text
+.
+├── backend/                # FastAPI Server
+│   ├── api_server.py       # Main API entry point
+│   ├── requirements.txt    # Python dependencies
+│   └── weights/            # Trained model weights
+├── src/                    # Mobile App Source
+│   ├── components/         # UI Components
+│   ├── screens/            # App Screens (Triage, Patient List, etc.)
+│   ├── services/           # ApiService & DatabaseService
+│   ├── context/            # Global state management
+│   └── assets/             # Static assets
+├── App.js                  # App entry point
+└── package.json            # NPM dependencies
+```
 
 ---
 
-## 🚀 Future Roadmap
-- **Native Mobile App:** Direct smartphone sensor integration.
-- **Cluster Mapping:** Real-time data visualization to help aid coordinators see "hot spots" of respiratory illness in camps.
-- **Expert Remote Review:** Encrypted audio uploads for remote specialists.
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js (v18+)
+- Python (v3.9+)
+- Expo Go app on your mobile device (to test hardware integration)
+
+### Backend Setup
+1. Navigate to the backend directory:
+   ```bash
+   cd backend
+   ```
+2. Create and activate a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Run the server:
+   ```bash
+   python api_server.py
+   ```
+   *The API will be available at `http://localhost:8000`*
+
+### Frontend Setup
+1. Install NPM dependencies:
+   ```bash
+   npm install
+   ```
+2. Update the API URL:
+   Edit `src/services/ApiService.js` and change `API_BASE_URL` to your local machine's IP address if testing on a physical device.
+3. Start the Expo development server:
+   ```bash
+   npx expo start
+   ```
+
+---
+
+## 🛠️ The Hardware: RevoScope
+The RevoScope is an original, low-cost ($<10 USD) acoustic sensor:
+- **Components**: High-sensitivity capacitive microphone + 3D-printed acoustic chamber.
+- **Design**: Optimized for digital sensors rather than human ears, providing cleaner data for the AI.
+
+---
+
+## 🗺️ Roadmap
+- [ ] **Native Mobile Integration**: Direct smartphone sensor access.
+- [ ] **Offline Inference**: Porting the AI model to ONNX/TensorFlow Lite for on-device analysis.
+- [ ] **Geospatial Mapping**: Visualizing disease "hot spots" for aid organizations.
+- [ ] **Multi-Language Support**: Localizing the interface for diverse global responders.
+
+---
+© 2026 RevoScope Team | LifeLines Hackathon
 
