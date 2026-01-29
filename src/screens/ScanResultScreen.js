@@ -4,6 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useApp } from '../context/AppContext';
 import { analyzeAudio, checkBackendHealth } from '../services/ApiService';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 const SCAN_DURATION_SECONDS = 15; // 15 seconds for 3-5 respiratory cycles
 
@@ -62,6 +64,9 @@ export default function ScanResultScreen({ route, navigation }) {
     const [audioLevel, setAudioLevel] = useState(0);
     const [result, setResult] = useState(null);
     const [usingRealAI, setUsingRealAI] = useState(false);
+    const [sound, setSound] = useState(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     const recordingRef = useRef(null);
     const recordedUriRef = useRef(null);
@@ -74,8 +79,163 @@ export default function ScanResultScreen({ route, navigation }) {
         } else if (mode === 'upload') {
             analyzeWithAPI(audioUri);
         }
-        return () => stopRecording();
+        return () => {
+            stopRecording();
+            if (sound) {
+                sound.unloadAsync();
+            }
+        };
     }, []);
+
+    // Audio playback handlers
+    const playAudio = async () => {
+        try {
+            // Get audio URI from either recorded ref (review phase) or result (results screen)
+            const audioUri = recordedUriRef.current || result?.audio_uri;
+            if (!audioUri) {
+                console.log('No audio URI available');
+                return;
+            }
+
+            if (sound) {
+                // Resume if paused
+                await sound.playAsync();
+                setIsPlaying(true);
+            } else {
+                // Load and play
+                const { sound: newSound } = await Audio.Sound.createAsync(
+                    { uri: audioUri },
+                    { shouldPlay: true },
+                    (status) => {
+                        if (status.didJustFinish) {
+                            setIsPlaying(false);
+                        }
+                    }
+                );
+                setSound(newSound);
+                setIsPlaying(true);
+            }
+        } catch (error) {
+            console.error('Error playing audio:', error);
+        }
+    };
+
+    const pauseAudio = async () => {
+        try {
+            if (sound) {
+                await sound.pauseAsync();
+                setIsPlaying(false);
+            }
+        } catch (error) {
+            console.error('Error pausing audio:', error);
+        }
+    };
+
+    const togglePlayback = () => {
+        if (isPlaying) {
+            pauseAudio();
+        } else {
+            playAudio();
+        }
+    };
+
+    const handleExportPDF = async () => {
+        if (!result) return;
+        setIsExporting(true);
+
+        const html = `
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    <style>
+      body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; }
+      .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #EEE; padding-bottom: 20px; margin-bottom: 30px; }
+      .logo { font-size: 24px; font-bold: bold; color: #DC2626; }
+      .esi-badge { padding: 8px 16px; border-radius: 20px; font-weight: bold; color: white; }
+      .vitals-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+      .vital-card { padding: 15px; background: #F9FAFB; border-radius: 12px; text-align: center; border: 1px solid #E5E7EB; }
+      .vital-label { font-size: 12px; color: #6B7280; text-transform: uppercase; font-weight: bold; }
+      .vital-value { font-size: 24px; font-weight: bold; margin: 5px 0; }
+      .section { margin-bottom: 25px; }
+      .section-title { font-size: 14px; font-weight: bold; color: #9CA3AF; text-transform: uppercase; margin-bottom: 10px; }
+      .diagnosis { font-size: 20px; font-weight: bold; color: #111827; }
+      .recommendation-card { padding: 20px; border-radius: 12px; margin-top: 10px; line-height: 1.6; }
+      .footer { margin-top: 50px; font-size: 12px; color: #9CA3AF; text-align: center; border-top: 1px solid #EEE; padding-top: 20px; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <div class="logo">RevoScope LifeLine</div>
+        <div style="font-size: 14px; color: #6B7280; margin-top: 4px;">Diagnostic Report</div>
+      </div>
+      <div class="esi-badge" style="background-color: ${ESI_CONFIG[result.esi_level].color}">
+        ESI LEVEL ${result.esi_level}
+      </div>
+    </div>
+
+    <div class="section" style="margin-bottom: 40px;">
+      <div class="section-title">Patient Information</div>
+      <div style="font-size: 16px;">
+        <strong>Patient ID:</strong> ${patientId}<br/>
+        <strong>Scan Date:</strong> ${new Date(result.timestamp).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Vital Signs</div>
+      <div class="vitals-grid">
+        <div class="vital-card" style="border-top: 4px solid ${ESI_CONFIG[result.esi_level].color}">
+          <div class="vital-label">Severity</div>
+          <div class="vital-value" style="color: ${ESI_CONFIG[result.esi_level].color}">${result.severity_score}%</div>
+        </div>
+        <div class="vital-card" style="border-top: 4px solid #3B82F6">
+          <div class="vital-label">Confidence</div>
+          <div class="vital-value" style="color: #3B82F6">${result.confidence_score}%</div>
+        </div>
+        <div class="vital-card" style="border-top: 4px solid #DC2626">
+          <div class="vital-label">Heart Rate</div>
+          <div class="vital-value" style="color: #DC2626">${result.heart_rate} <span style="font-size: 12px;">BPM</span></div>
+        </div>
+      </div>
+      <div class="vitals-grid">
+        <div class="vital-card" style="border-top: 4px solid #10B981">
+          <div class="vital-label">Respiratory Rate</div>
+          <div class="vital-value" style="color: #10B981">${result.respiratory_rate} <span style="font-size: 12px;">/min</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">AI Diagnosis</div>
+      <div class="diagnosis">${result.diagnosis}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Clinical Recommendation</div>
+      <div class="recommendation-card" style="background-color: ${ESI_CONFIG[result.esi_level].color}10; border-left: 4px solid ${ESI_CONFIG[result.esi_level].color}">
+        ${result.recommendation}
+      </div>
+    </div>
+
+    <div class="footer">
+      This report was generated by RevoScope LifeLine AI.<br/>
+      Medical assessment should be performed by a qualified healthcare professional.
+    </div>
+  </body>
+</html>
+        `;
+
+        try {
+            const { uri } = await Print.printToFileAsync({ html });
+            setIsExporting(false);
+            await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            setIsExporting(false);
+            alert('Failed to generate PDF report.');
+        }
+    };
 
     // Try to analyze with real API first
     const analyzeWithAPI = async (uri) => {
@@ -165,6 +325,24 @@ export default function ScanResultScreen({ route, navigation }) {
 
     const handleRecordingComplete = async () => {
         await stopRecording();
+        setPhase('review'); // Go to review phase instead of analyzing
+    };
+
+    const handleRedoRecording = async () => {
+        // Reset and start new recording
+        if (sound) {
+            await sound.unloadAsync();
+            setSound(null);
+        }
+        setIsPlaying(false);
+        audioHistory.current = [];
+        setRecordProgress(0);
+        recordedUriRef.current = null;
+        setPhase('recording');
+        setTimeout(() => startRecording(), 100);
+    };
+
+    const handleContinueToAnalysis = async () => {
         setPhase('analyzing');
 
         // Get the recorded URI
@@ -226,6 +404,9 @@ export default function ScanResultScreen({ route, navigation }) {
 
     // Handle API result (from real AI model)
     const completeAnalysisWithAPIResult = async (data) => {
+        // Calculate respiratory rate (from API or simulate)
+        const respiratoryRate = data.respiratoryRate || Math.floor(12 + (data.severity / 100) * 18); // 12-30 range based on severity
+
         const scanResult = {
             diagnosis: data.diagnosis === 'Both' ? 'Crackles + Wheezes' : data.diagnosis,
             severity_score: data.severity,
@@ -233,6 +414,9 @@ export default function ScanResultScreen({ route, navigation }) {
             esi_level: data.esiLevel,
             recommendation: data.recommendation,
             heart_rate: data.heartRate,
+            respiratory_rate: respiratoryRate,
+            timestamp: new Date().toISOString(),
+            audio_uri: audioUri || recordedUriRef.current || 'recorded_audio',
             status: data.esiLevel <= 2 ? 'Critical' : data.esiLevel <= 3 ? 'Monitoring' : 'Normal'
         };
 
@@ -288,6 +472,15 @@ export default function ScanResultScreen({ route, navigation }) {
 
         const simulatedHeartRate = Math.floor(baseHr + (Math.random() * 20 - 10));
 
+        // Generate respiratory rate based on severity and diagnosis
+        // Normal: 12-20, Distressed: 20-30+
+        let baseRespRate = 16; // Normal baseline
+        if (severity > 70) baseRespRate = 26; // Tachypnea in severe cases
+        else if (severity > 40) baseRespRate = 22; // Elevated
+        else if (classification === 'Wheezes' || classification === 'Both') baseRespRate = 24; // Wheezing often increases RR
+
+        const simulatedRespiratoryRate = Math.floor(baseRespRate + (Math.random() * 6 - 3));
+
         const scanResult = {
             diagnosis: classification === 'Both' ? 'Crackles + Wheezes' : classification,
             severity_score: severity,
@@ -295,6 +488,9 @@ export default function ScanResultScreen({ route, navigation }) {
             esi_level: esiLevel,
             recommendation: triageAdvice,
             heart_rate: simulatedHeartRate,
+            respiratory_rate: simulatedRespiratoryRate,
+            timestamp: new Date().toISOString(),
+            audio_uri: audioUri || recordedUriRef.current || 'recorded_audio',
             status: esiLevel <= 2 ? 'Critical' : esiLevel <= 3 ? 'Monitoring' : 'Normal'
         };
 
@@ -362,6 +558,66 @@ export default function ScanResultScreen({ route, navigation }) {
         );
     }
 
+    // Review Phase - Added between recording and analyzing
+    if (phase === 'review') {
+        return (
+            <View className="flex-1 bg-white items-center justify-center">
+                <View className="bg-gray-50 p-8 rounded-3xl items-center mx-6 w-full max-w-sm">
+                    <View className="h-20 w-20 bg-green-600 rounded-full items-center justify-center mb-5">
+                        <Ionicons name="checkmark" size={42} color="#fff" />
+                    </View>
+                    <Text className="text-2xl font-bold text-gray-800">Recording Complete</Text>
+                    <Text className="text-gray-500 mt-1 mb-5 text-center">
+                        {SCAN_DURATION_SECONDS} seconds of respiratory sounds captured
+                    </Text>
+
+                    {/* Audio Playback */}
+                    <TouchableOpacity
+                        className="w-full bg-white p-4 rounded-2xl border-2 border-gray-200 mb-4 flex-row items-center justify-between"
+                        onPress={togglePlayback}
+                    >
+                        <View className="flex-row items-center flex-1">
+                            <View className="h-12 w-12 rounded-full bg-red-50 items-center justify-center mr-3">
+                                <Ionicons
+                                    name={isPlaying ? "pause" : "play"}
+                                    size={24}
+                                    color="#DC2626"
+                                />
+                            </View>
+                            <View className="flex-1">
+                                <Text className="text-base font-bold text-gray-800">
+                                    {isPlaying ? 'Playing...' : 'Play Recording'}
+                                </Text>
+                                <Text className="text-xs text-gray-500">Review audio quality</Text>
+                            </View>
+                        </View>
+                        <Ionicons name="volume-high" size={24} color="#9CA3AF" />
+                    </TouchableOpacity>
+
+                    {/* Action Buttons */}
+                    <View className="w-full gap-3">
+                        <TouchableOpacity
+                            className="py-4 rounded-xl items-center bg-red-600"
+                            onPress={handleContinueToAnalysis}
+                        >
+                            <Text className="text-white font-bold text-lg">Continue to Analysis</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            className="py-4 rounded-xl items-center bg-white border-2 border-gray-300"
+                            onPress={handleRedoRecording}
+                        >
+                            <View className="flex-row items-center">
+                                <Ionicons name="refresh" size={20} color="#374151" />
+                                <Text className="text-gray-700 font-bold text-base ml-2">Redo Recording</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        );
+    }
+
     // Analyzing Phase
     if (phase === 'analyzing') {
         return (
@@ -386,7 +642,15 @@ export default function ScanResultScreen({ route, navigation }) {
             <View className="pt-16 pb-4 px-6 bg-white border-b border-gray-100 flex-row justify-between items-center">
                 <View>
                     <Text className="text-xl font-bold text-gray-800">Diagnostic Result</Text>
-                    <Text className="text-sm text-gray-400">Analysis Complete</Text>
+                    <Text className="text-sm text-gray-400">
+                        {new Date(result.timestamp).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })}
+                    </Text>
                 </View>
                 <View className="px-4 py-2 rounded-full" style={{ backgroundColor: esi.color + '20', borderWidth: 2, borderColor: esi.color }}>
                     <Text style={{ color: esi.color, fontWeight: 'bold' }}>ESI-{result.esi_level}</Text>
@@ -394,45 +658,72 @@ export default function ScanResultScreen({ route, navigation }) {
             </View>
 
             <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
-                {/* Dual Score Display */}
+                {/* Triple Score Display */}
                 <View className="flex-row justify-center gap-6 mb-6">
                     {/* Severity Circle */}
                     <View
-                        className="h-40 w-40 rounded-full items-center justify-center bg-white shadow-lg"
+                        className="h-36 w-36 rounded-full items-center justify-center bg-white shadow-lg"
                         style={{ borderWidth: 6, borderColor: esi.color }}
                     >
                         <Text className="text-gray-400 text-sm font-bold uppercase">Severity</Text>
-                        <Text className="text-5xl font-bold" style={{ color: esi.color }}>
+                        <Text className="text-4xl font-bold" style={{ color: esi.color }}>
                             {result.severity_score}%
                         </Text>
                     </View>
                     {/* Confidence Circle */}
                     <View
-                        className="h-40 w-40 rounded-full items-center justify-center bg-white shadow-lg"
+                        className="h-36 w-36 rounded-full items-center justify-center bg-white shadow-lg"
                         style={{ borderWidth: 6, borderColor: '#3B82F6' }}
                     >
                         <Text className="text-gray-400 text-sm font-bold uppercase">Confidence</Text>
-                        <Text className="text-5xl font-bold text-blue-500">
+                        <Text className="text-4xl font-bold text-blue-500">
                             {result.confidence_score}%
                         </Text>
                     </View>
+                    {/* Heart Rate Circle */}
+                    {result.heart_rate && (
+                        <View
+                            className="h-36 w-36 rounded-full items-center justify-center bg-white shadow-lg"
+                            style={{ borderWidth: 6, borderColor: '#DC2626' }}
+                        >
+                            <Text className="text-gray-400 text-sm font-bold uppercase">Heart Rate</Text>
+                            <Text className="text-4xl font-bold text-red-600">
+                                {result.heart_rate}
+                            </Text>
+                            <Text className="text-xs text-gray-500 mt-1">BPM</Text>
+                        </View>
+                    )}
                 </View>
+
+                {/* Audio Playback Control */}
+                {result.audio_uri && (
+                    <TouchableOpacity
+                        className="bg-white p-4 rounded-2xl border border-gray-100 mb-3 flex-row items-center justify-between"
+                        onPress={togglePlayback}
+                    >
+                        <View className="flex-row items-center flex-1">
+                            <View className="h-10 w-10 rounded-full bg-red-50 items-center justify-center mr-3">
+                                <Ionicons
+                                    name={isPlaying ? "pause" : "play"}
+                                    size={20}
+                                    color="#DC2626"
+                                />
+                            </View>
+                            <View className="flex-1">
+                                <Text className="text-sm font-bold text-gray-800">
+                                    {isPlaying ? 'Playing' : 'Play'} Respiratory Audio
+                                </Text>
+                                <Text className="text-xs text-gray-500">Recorded respiratory sounds</Text>
+                            </View>
+                        </View>
+                        <Ionicons name="volume-high" size={20} color="#9CA3AF" />
+                    </TouchableOpacity>
+                )}
 
                 {/* AI Diagnosis */}
                 <View className="bg-white p-5 rounded-2xl border border-gray-100 mb-3">
                     <Text className="text-xs font-bold text-gray-400 uppercase mb-2">AI Diagnosis</Text>
-                    <View className="flex-row justify-between items-start">
-                        <View className="flex-1">
-                            <Text className="text-2xl font-bold text-gray-800">{result.diagnosis}</Text>
-                        </View>
-                        {result.heart_rate && (
-                            <View className="bg-blue-50 px-3 py-2 rounded-lg items-center">
-                                <Text className="text-xs font-bold text-blue-600 uppercase mb-1">Heart Rate</Text>
-                                <Text className="text-lg font-bold text-blue-600">{result.heart_rate}</Text>
-                                <Text className="text-xs text-blue-500">BPM</Text>
-                            </View>
-                        )}
-                    </View>
+                    <Text className="text-2xl font-bold text-gray-800">{result.diagnosis}</Text>
                     <Text className="text-sm text-gray-500 mt-2 leading-5">
                         {result.diagnosis === 'Normal'
                             ? 'Normal vesicular breath sounds detected. No adventitious sounds identified. Breath sounds are clear and symmetric.'
@@ -491,14 +782,54 @@ export default function ScanResultScreen({ route, navigation }) {
                     <Text className="text-gray-700 leading-6 text-base">{result.recommendation}</Text>
                 </View>
 
-                {/* ESI Badge */}
-                <View className="bg-gray-800 p-5 rounded-2xl">
-                    <Text className="text-gray-400 text-xs font-bold uppercase mb-2">Triage Level</Text>
-                    <View className="flex-row items-center">
-                        <View className="h-4 w-4 rounded-full mr-3" style={{ backgroundColor: esi.color }} />
-                        <Text className="text-white text-lg font-bold">ESI-{result.esi_level}: {esi.name}</Text>
+                {/* Respiratory Rate */}
+                {result.respiratory_rate && (
+                    <View className="bg-white p-4 rounded-2xl border border-gray-100 flex-row items-center justify-between">
+                        <View className="flex-row items-center">
+                            <View className="h-10 w-10 rounded-full bg-green-50 items-center justify-center mr-3">
+                                <Ionicons name="pulse" size={24} color="#10B981" />
+                            </View>
+                            <View>
+                                <Text className="text-xs font-bold text-gray-400 uppercase">Respiratory Rate</Text>
+                                <Text className="text-sm text-gray-600 mt-1">Breaths per minute</Text>
+                            </View>
+                        </View>
+                        <View className="items-center">
+                            <Text className="text-4xl font-bold text-green-600">{result.respiratory_rate}</Text>
+                            <Text className="text-xs text-gray-500">/min</Text>
+                        </View>
                     </View>
-                </View>
+                )}
+
+                {/* Export PDF Button */}
+                <TouchableOpacity
+                    className={`bg-white p-4 rounded-2xl border border-gray-100 mt-3 flex-row items-center justify-between ${isExporting ? 'opacity-50' : ''}`}
+                    onPress={handleExportPDF}
+                    disabled={isExporting}
+                >
+                    <View className="flex-row items-center flex-1">
+                        <View className="h-10 w-10 rounded-full bg-blue-50 items-center justify-center mr-3">
+                            <Ionicons
+                                name="document-text"
+                                size={24}
+                                color="#3B82F6"
+                            />
+                        </View>
+                        <View className="flex-1">
+                            <Text className="text-sm font-bold text-gray-800">
+                                {isExporting ? 'Generating Report...' : 'Export as PDF Report'}
+                            </Text>
+                            <Text className="text-xs text-gray-500">Professional diagnostic summary</Text>
+                        </View>
+                    </View>
+                    {isExporting ? (
+                        <ActivityIndicator size="small" color="#3B82F6" />
+                    ) : (
+                        <Ionicons name="share-outline" size={24} color="#3B82F6" />
+                    )}
+                </TouchableOpacity>
+
+
             </ScrollView>
 
             {/* Footer */}
