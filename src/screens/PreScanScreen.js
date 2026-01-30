@@ -7,7 +7,7 @@ import * as DocumentPicker from 'expo-document-picker';
 const MIN_AUDIO_DURATION = 15; // seconds
 
 export default function PreScanScreen({ route, navigation }) {
-    const { patientId, includeHeartRate } = route.params;
+    const { patientId, includeHeartRate, forcedResult } = route.params;
     const [isStarting, setIsStarting] = useState(false);
     const [audioLevel, setAudioLevel] = useState(0);
     const [micWorking, setMicWorking] = useState(false);
@@ -67,7 +67,7 @@ export default function PreScanScreen({ route, navigation }) {
         setIsStarting(true);
         await stopTestRecording();
         setTimeout(() => {
-            navigation.replace('Result', { patientId, mode: 'scan', includeHeartRate });
+            navigation.replace('Result', { patientId, mode: 'scan', includeHeartRate, forcedResult });
         }, 300);
     };
 
@@ -109,7 +109,8 @@ export default function PreScanScreen({ route, navigation }) {
                     mode: 'upload',
                     audioUri: file.uri,
                     audioDuration: durationSeconds,
-                    includeHeartRate
+                    includeHeartRate,
+                    forcedResult
                 });
             } else {
                 Alert.alert('Error', 'Could not read audio file duration.');
