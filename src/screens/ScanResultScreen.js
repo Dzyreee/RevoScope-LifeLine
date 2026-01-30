@@ -57,7 +57,7 @@ const classifyRespiratorySound = (audioFeatures) => {
 
 export default function ScanResultScreen({ route, navigation }) {
     const { recordScan, refreshDashboard } = useApp();
-    const { patientId, mode, audioUri, audioDuration } = route.params;
+    const { patientId, mode, audioUri, audioDuration, includeHeartRate } = route.params;
 
     const [phase, setPhase] = useState(mode === 'scan' ? 'recording' : 'analyzing');
     const [recordProgress, setRecordProgress] = useState(0);
@@ -152,8 +152,8 @@ export default function ScanResultScreen({ route, navigation }) {
       .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #EEE; padding-bottom: 20px; margin-bottom: 30px; }
       .logo { font-size: 24px; font-bold: bold; color: #DC2626; }
       .esi-badge { padding: 8px 16px; border-radius: 20px; font-weight: bold; color: white; }
-      .vitals-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 30px; }
-      .vital-card { padding: 15px; background: #F9FAFB; border-radius: 12px; text-align: center; border: 1px solid #E5E7EB; }
+      .vitals-grid { display: flex; gap: 20px; justify-content: center; margin-bottom: 30px; }
+      .vital-card { flex: 1; min-width: 0; padding: 15px; background: #F9FAFB; border-radius: 12px; text-align: center; border: 1px solid #E5E7EB; }
       .vital-label { font-size: 12px; color: #6B7280; text-transform: uppercase; font-weight: bold; }
       .vital-value { font-size: 24px; font-weight: bold; margin: 5px 0; }
       .section { margin-bottom: 25px; }
@@ -193,11 +193,12 @@ export default function ScanResultScreen({ route, navigation }) {
           <div class="vital-label">Confidence</div>
           <div class="vital-value" style="color: #3B82F6">${result.confidence_score}%</div>
         </div>
+        ${result.heart_rate ? `
         <div class="vital-card" style="border-top: 4px solid #DC2626">
           <div class="vital-label">Heart Rate</div>
           <div class="vital-value" style="color: #DC2626">${result.heart_rate} <span style="font-size: 12px;">BPM</span></div>
-        </div>
-      </div>
+        </div>` : ''}
+              </div>
       <div class="vitals-grid">
         <div class="vital-card" style="border-top: 4px solid #10B981">
           <div class="vital-label">Respiratory Rate</div>
@@ -413,7 +414,7 @@ export default function ScanResultScreen({ route, navigation }) {
             confidence_score: Math.floor(data.confidence),
             esi_level: data.esiLevel,
             recommendation: data.recommendation,
-            heart_rate: data.heartRate,
+            heart_rate: includeHeartRate ? data.heartRate : null,
             respiratory_rate: respiratoryRate,
             timestamp: new Date().toISOString(),
             audio_uri: audioUri || recordedUriRef.current || 'recorded_audio',
@@ -466,11 +467,14 @@ export default function ScanResultScreen({ route, navigation }) {
 
         // Generate simulated heart rate based on severity
         // Higher severity often correlates with higher heart rate (tachycardia)
-        let baseHr = 75;
-        if (severity > 70) baseHr = 110;
-        else if (severity > 40) baseHr = 95;
+        let simulatedHeartRate = null;
+        if (includeHeartRate) {
+            let baseHr = 75;
+            if (severity > 70) baseHr = 110;
+            else if (severity > 40) baseHr = 95;
 
-        const simulatedHeartRate = Math.floor(baseHr + (Math.random() * 20 - 10));
+            simulatedHeartRate = Math.floor(baseHr + (Math.random() * 20 - 10));
+        }
 
         // Generate respiratory rate based on severity and diagnosis
         // Normal: 12-20, Distressed: 20-30+

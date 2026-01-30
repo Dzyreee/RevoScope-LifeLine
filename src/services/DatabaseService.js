@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import * as Crypto from 'expo-crypto';
 
 let db;
 
@@ -40,7 +41,76 @@ export const initDB = async () => {
       timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      full_name TEXT,
+      hospital TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
+
+  // Migration: Add heart_rate column if it doesn't exist
+  try {
+    // Check if column exists by attempting to select it? Or just try adding it.
+    // Simpler: Try to add it. If it exists, it will throw, catch and ignore.
+    await database.execAsync(`ALTER TABLE patients ADD COLUMN heart_rate INTEGER;`);
+  } catch (e) {
+    // Check if error is "duplicate column name"
+    if (!e.message.includes('duplicate column name')) {
+      // Log legitimate errors, ignore duplicate column errors
+      // console.log('Migration note: heart_rate column likely already exists or other error:', e);
+    }
+  }
+};
+
+const hashPassword = async (password) => {
+  try {
+    const digest = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      password
+    );
+    return digest;
+  } catch (e) {
+    console.error("Hashing failed", e);
+    return null;
+  }
+};
+
+export const registerUser = async (email, password, fullName, hospital) => {
+  const database = await getDB();
+  const passwordHash = await hashPassword(password);
+
+  if (!passwordHash) throw new Error("Failed to process password");
+
+  try {
+    const result = await database.runAsync(
+      `INSERT INTO users (email, password_hash, full_name, hospital) VALUES (?, ?, ?, ?)`,
+      [email, passwordHash, fullName, hospital]
+    );
+    return result.lastInsertRowId;
+  } catch (error) {
+    if (error.message.includes('UNIQUE constraint failed')) {
+      throw new Error("Email already registered");
+    }
+    throw error;
+  }
+};
+
+export const loginUser = async (email, password) => {
+  const database = await getDB();
+  const passwordHash = await hashPassword(password);
+
+  if (!passwordHash) throw new Error("Failed to process password");
+
+  const user = await database.getFirstAsync(
+    `SELECT * FROM users WHERE email = ? AND password_hash = ?`,
+    [email, passwordHash]
+  );
+
+  return user;
 };
 
 export const addPatient = async (patient) => {
@@ -125,6 +195,7 @@ export const resetDB = async () => {
   await database.execAsync(`
     DROP TABLE IF EXISTS scans;
     DROP TABLE IF EXISTS patients;
+    DROP TABLE IF EXISTS users;
   `);
   await initDB();
 };
