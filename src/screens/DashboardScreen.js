@@ -151,14 +151,7 @@ export default function DashboardScreen({ navigation }) {
                 <Image source={logoImage} style={{ width: 240, height: 90, marginTop: 10, marginLeft: -30 }} resizeMode="contain" />
                 <View className="items-end justify-center h-full pt-4">
                     <View className="flex-row items-center gap-2">
-                        {filter && (
-                            <TouchableOpacity
-                                className="h-10 w-10 bg-red-50 rounded-full items-center justify-center"
-                                onPress={() => setFilter(null)}
-                            >
-                                <Ionicons name="home" size={20} color="#DC2626" />
-                            </TouchableOpacity>
-                        )}
+
                         <TouchableOpacity
                             className="h-10 w-10 bg-blue-50 rounded-full items-center justify-center shadow-sm"
                             onPress={() => navigation.navigate('Help')}
@@ -208,6 +201,14 @@ export default function DashboardScreen({ navigation }) {
             <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 100 }}>
                 {filter ? (
                     <>
+                        <TouchableOpacity
+                            className="flex-row items-center mb-6 bg-gray-50 p-4 rounded-2xl border border-gray-100 shadow-sm"
+                            onPress={() => setFilter(null)}
+                        >
+                            <Ionicons name="arrow-back" size={20} color="#374151" />
+                            <Text className="text-gray-700 font-bold ml-2">Back to Dashboard Overview</Text>
+                        </TouchableOpacity>
+
                         <Text className="text-gray-500 font-bold text-sm uppercase tracking-wider mb-4 px-2">
                             {filter} Patients ({filteredList.length})
                         </Text>

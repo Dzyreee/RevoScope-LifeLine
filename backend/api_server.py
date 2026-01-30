@@ -8,6 +8,7 @@ Run: python api_server.py
 import os
 import tempfile
 import numpy as np
+from typing import Optional, Dict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -267,7 +268,7 @@ class AnalysisResponse(BaseModel):
     esi_level: int
     esi_name: str
     recommendation: str
-    heart_rate: int | None = None
+    heart_rate: Optional[int] = None
 
 
 @app.get("/health")
