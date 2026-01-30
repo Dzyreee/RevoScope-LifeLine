@@ -130,57 +130,77 @@ def extract_features_fast(audio_path):
 
 
 def detect_heart_rate(audio_path, sr=SAMPLE_RATE):
-    """Detect heart rate from audio using FFT and bandpass filtering."""
+    """
+    Advanced heart rate detection using envelope extraction and autocorrelation.
+    More robust than simple FFT for short, impulsive heart sounds.
+    """
     try:
         # Load audio
         y, _ = librosa.load(audio_path, sr=sr, duration=DURATION)
-        
-        # Bandpass filter for heartbeat frequencies (60-200 BPM = 1-3.33 Hz)
-        # But we also capture up to 200 Hz in case of transients
+        if len(y) == 0:
+            return None
+
+        # 1. Bandpass filter for S1/S2 heart sound frequencies (20-120 Hz)
+        # This removes most lung sounds (whooshing) and high-frequency noise
         nyquist = sr / 2
-        low_freq = 0.5  # 30 BPM minimum
-        high_freq = 3.5  # 210 BPM maximum
-        low = low_freq / nyquist
-        high = high_freq / nyquist
+        f_low, f_high = 20, 120
+        b, a = butter(3, [f_low/nyquist, f_high/nyquist], btype='band')
+        y_filt = filtfilt(b, a, y)
+
+        # 2. Envelope Extraction
+        # Rectification (absolute value) + Smoothing (Low-pass filter at 10Hz)
+        y_abs = np.abs(y_filt)
+        b_env, a_env = butter(2, 10/nyquist, btype='low')
+        envelope = filtfilt(b_env, a_env, y_abs)
         
-        # Ensure valid filter parameters
-        low = max(0.001, min(low, 0.999))
-        high = max(low + 0.001, min(high, 0.999))
+        # Normalize envelope
+        envelope = (envelope - np.mean(envelope)) / (np.std(envelope) + 1e-8)
+
+        # 3. Autocorrelation
+        # Find repeating patterns in the amplitude envelope
+        n = len(envelope)
+        # We only need autocorrelation for lags corresponding to 40-200 BPM
+        # 40 BPM = 1.5s lag, 200 BPM = 0.3s lag
+        min_lag = int(0.3 * sr)
+        max_lag = int(1.5 * sr)
         
-        b, a = butter(4, [low, high], btype='band')
-        y_filtered = filtfilt(b, a, y)
+        # Optimized autocorrelation using FFT
+        f_env = np.fft.rfft(envelope, n=2*n)
+        acf = np.fft.irfft(f_env * np.conj(f_env))[:n]
+        acf /= np.arange(n, 0, -1) # Unbiased
+        acf /= acf[0] # Normalize
         
-        # Compute power spectral density
-        freqs = np.fft.rfftfreq(len(y_filtered), d=1/sr)
-        spectrum = np.abs(np.fft.rfft(y_filtered)) ** 2
-        
-        # Focus on heartbeat frequency range (0.5-3.5 Hz = 30-210 BPM)
-        freq_mask = (freqs >= 0.5) & (freqs <= 3.5)
-        freqs_masked = freqs[freq_mask]
-        spectrum_masked = spectrum[freq_mask]
-        
-        if len(spectrum_masked) == 0:
+        # 4. Peak Detection in ACF
+        # Search for the highest peak in the target lag range
+        acf_segment = acf[min_lag:max_lag]
+        if len(acf_segment) == 0:
             return None
+            
+        peaks, props = find_peaks(acf_segment, height=0.1, distance=int(0.2*sr))
         
-        # Find dominant frequency
-        peaks, properties = find_peaks(spectrum_masked, height=0)
+        if len(peaks) > 0:
+            # Pick the highest peak in the autocorrelation
+            best_peak_idx = peaks[np.argmax(props['peak_heights'])]
+            lag = best_peak_idx + min_lag
+            
+            heart_rate = int(round(60 * sr / lag))
+            
+            # Final sanity check
+            if 40 <= heart_rate <= 200:
+                print(f"✓ DSP HR Detected: {heart_rate} BPM (lag={lag})")
+                return heart_rate
         
-        if len(peaks) == 0:
-            # No peaks found, use global maximum
-            dominant_idx = np.argmax(spectrum_masked)
-        else:
-            # Get peak with highest power
-            peak_heights = properties['peak_heights']
-            dominant_idx = peaks[np.argmax(peak_heights)]
-        
-        dominant_freq = freqs_masked[dominant_idx]
-        heart_rate = int(round(dominant_freq * 60))  # Convert Hz to BPM
-        
-        # Validate heart rate (realistic range)
-        if 40 <= heart_rate <= 200:
-            return heart_rate
-        else:
-            return None
+        # Fallback to simple peak counting in time domain if ACF fails
+        peaks_time, _ = find_peaks(envelope, height=np.percentile(envelope, 85), distance=int(0.4*sr))
+        if len(peaks_time) > 1:
+            intervals = np.diff(peaks_time) / sr
+            avg_interval = np.median(intervals)
+            heart_rate = int(round(60 / avg_interval))
+            if 40 <= heart_rate <= 200:
+                print(f"✓ Fallback HR Detected: {heart_rate} BPM")
+                return heart_rate
+
+        return None
             
     except Exception as e:
         print(f"Heart rate detection error: {e}")
