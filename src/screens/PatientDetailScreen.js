@@ -206,7 +206,11 @@ export default function PatientDetailScreen({ route, navigation }) {
                         </View>
                     ) : (
                         scans.map(scan => (
-                            <View key={scan.id} className="bg-white p-4 mb-3 rounded-xl border border-gray-100 flex-row justify-between items-center">
+                            <TouchableOpacity
+                                key={scan.id}
+                                className="bg-white p-4 mb-3 rounded-xl border border-gray-100 flex-row justify-between items-center"
+                                onPress={() => navigation.navigate('Result', { mode: 'view', scanData: scan, patientId })}
+                            >
                                 <View>
                                     <Text className="font-bold text-gray-700 text-base">{scan.diagnosis}</Text>
                                     <View className="flex-row items-center gap-2 mt-1">
@@ -223,7 +227,7 @@ export default function PatientDetailScreen({ route, navigation }) {
                                     <Text className="font-bold text-gray-500 text-lg">{scan.severity_score}%</Text>
                                     <Text className="text-[10px] text-gray-400 font-bold uppercase">Severity</Text>
                                 </View>
-                            </View>
+                            </TouchableOpacity>
                         ))
                     )}
                 </View>

@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ESI_CONFIG } from '../constants/Config';
 
 export default function PatientQueueCard({ patient, onPress }) {
-    const { full_name, profile_image, severity_score, confidence_score, heart_rate } = patient;
+    const { full_name, profile_image, severity_score, confidence_score, heart_rate, esi_level } = patient;
 
     // Severity color logic
     let severityColor = "#10B981"; // Green
@@ -34,6 +35,11 @@ export default function PatientQueueCard({ patient, onPress }) {
             <View className="flex-1">
                 <Text className="text-lg font-bold text-gray-800">{full_name}</Text>
                 <View className="flex-row items-center mt-1 gap-2">
+                    {esi_level && (
+                        <View className="px-2 py-0.5 rounded-full" style={{ backgroundColor: ESI_CONFIG[esi_level]?.color || '#9CA3AF' }}>
+                            <Text className="text-[10px] font-black text-white">ESI {esi_level}</Text>
+                        </View>
+                    )}
                     <View className="bg-gray-100 px-2 py-0.5 rounded-full">
                         <Text className="text-xs font-medium text-gray-500">Conf: {confidence_score}%</Text>
                     </View>

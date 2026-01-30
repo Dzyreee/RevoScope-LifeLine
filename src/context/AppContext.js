@@ -47,7 +47,7 @@ export const AppProvider = ({ children }) => {
             resetDatabase,
             createPatient: DB.addPatient,
             updatePatient: DB.updatePatient,
-            recordScan: DB.addScan,
+            recordScan: (patientId, audioUri, diagnosis, severityScore, confidenceScore, esiLevel, status, triageAdvice, heartRate) => DB.addScan(patientId, audioUri, diagnosis, severityScore, confidenceScore, esiLevel, status, triageAdvice, heartRate),
             deletePatient: DB.deletePatient,
             getHistory: DB.getPatientHistory
         }}>
