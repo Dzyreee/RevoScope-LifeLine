@@ -51,12 +51,11 @@ const classifyRespiratorySound = (audioFeatures) => {
 
 export default function ScanResultScreen({ route, navigation }) {
     const { recordScan, refreshDashboard } = useApp();
-    const { patientId, mode, audioUri, audioDuration, scanData, forcedResult } = route.params;
-
+    const { patientId, mode, audioUri, audioDuration, includeHeartRate, scanData } = route.params;
     const [phase, setPhase] = useState(mode === 'scan' ? 'recording' : mode === 'view' ? 'result' : 'analyzing');
     const [recordProgress, setRecordProgress] = useState(0);
     const [audioLevel, setAudioLevel] = useState(0);
-    const [result, setResult] = useState(mode === 'view' ? scanData : null);
+    const [result, setResult] = useState(mode === 'view' ? (scanData || {}) : null);
     const [usingRealAI, setUsingRealAI] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
 
@@ -494,6 +493,14 @@ export default function ScanResultScreen({ route, navigation }) {
                     </View>
                     <Text className="text-2xl font-bold text-gray-800">Recording...</Text>
                     <Text className="text-gray-500 mt-1 mb-5">Capturing respiratory sounds</Text>
+
+                    {/* Spectral Gating / Noise Warning */}
+                    {audioLevel > 0.8 && (
+                        <View className="mb-6 bg-red-100 px-4 py-2 rounded-lg flex-row items-center border border-red-200">
+                            <Ionicons name="warning" size={20} color="#DC2626" />
+                            <Text className="text-red-700 font-bold ml-2">TOO LOUD: Move away!</Text>
+                        </View>
+                    )}
 
                     {/* Audio Level Meter */}
                     <View className="w-full mb-4">

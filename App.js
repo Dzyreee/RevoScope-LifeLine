@@ -58,6 +58,7 @@ import './src/global.css';
 import { useState, useEffect } from 'react';
 import { ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppProvider } from './src/context/AppContext';
 import DashboardScreen from './src/screens/DashboardScreen';
@@ -95,27 +96,29 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <AppProvider>
-        <NavigationContainer>
-          <StatusBar style="dark" />
-          <Stack.Navigator
-            initialRouteName={initialRoute}
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: '#FFF8F8' }
-            }}
-          >
-            <Stack.Screen name="Welcome" component={WelcomeScreen} />
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Dashboard" component={DashboardScreen} />
-            <Stack.Screen name="Intake" component={PatientIntakeScreen} />
-            <Stack.Screen name="PreScan" component={PreScanScreen} />
-            <Stack.Screen name="Result" component={ScanResultScreen} />
-            <Stack.Screen name="Detail" component={PatientDetailScreen} />
-            <Stack.Screen name="Help" component={HelpScreen} />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </AppProvider>
+      <SafeAreaProvider>
+        <AppProvider>
+          <NavigationContainer>
+            <StatusBar style="dark" />
+            <Stack.Navigator
+              initialRouteName={initialRoute}
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: '#FFF8F8' }
+              }}
+            >
+              <Stack.Screen name="Welcome" component={WelcomeScreen} />
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Dashboard" component={DashboardScreen} />
+              <Stack.Screen name="Intake" component={PatientIntakeScreen} />
+              <Stack.Screen name="PreScan" component={PreScanScreen} />
+              <Stack.Screen name="Result" component={ScanResultScreen} />
+              <Stack.Screen name="Detail" component={PatientDetailScreen} />
+              <Stack.Screen name="Help" component={HelpScreen} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </AppProvider>
+      </SafeAreaProvider>
     </ErrorBoundary>
   );
 }

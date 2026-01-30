@@ -56,15 +56,22 @@ export const initDB = async () => {
 
   // Migration: Add heart_rate column if it doesn't exist
   try {
-    // Check if column exists by attempting to select it? Or just try adding it.
-    // Simpler: Try to add it. If it exists, it will throw, catch and ignore.
     await database.execAsync(`ALTER TABLE patients ADD COLUMN heart_rate INTEGER;`);
   } catch (e) {
-    // Check if error is "duplicate column name"
-    if (!e.message.includes('duplicate column name')) {
-      // Log legitimate errors, ignore duplicate column errors
-      // console.log('Migration note: heart_rate column likely already exists or other error:', e);
-    }
+    // Ignore duplicate column error
+  }
+
+  // Migration: Add esi_level column if it doesn't exist (Fix for user error)
+  try {
+    await database.execAsync(`ALTER TABLE patients ADD COLUMN esi_level INTEGER DEFAULT 5;`);
+  } catch (e) {
+    // Ignore if already exists
+  }
+
+  try {
+    await database.execAsync(`ALTER TABLE scans ADD COLUMN esi_level INTEGER DEFAULT 5;`);
+  } catch (e) {
+    // Ignore if already exists
   }
 };
 
