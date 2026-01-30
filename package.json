@@ -7,7 +7,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "backend": "cd backend && source venv/bin/activate && python api_server.py"
+    "backend": "cd backend && venv/bin/python api_server.py"
   },
   "dependencies": {
     "@expo/metro-runtime": "^6.1.2",
@@ -20,6 +20,7 @@
     "expo-av": "~16.0.8",
     "expo-barcode-scanner": "^13.0.1",
     "expo-camera": "~17.0.10",
+    "expo-constants": "~18.0.13",
     "expo-crypto": "~15.0.8",
     "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.21",
@@ -46,6 +47,7 @@
   "devDependencies": {
     "@babel/core": "^7.28.6",
     "babel-preset-expo": "^54.0.10",
+    "concurrently": "^9.2.1",
     "tailwindcss": "^3.4.1"
   },
   "private": true

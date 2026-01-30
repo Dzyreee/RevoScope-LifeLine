@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Modal, Animated, Image, Alert, StyleSheet, Dimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from '@react-navigation/native';
+// import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
@@ -64,11 +64,14 @@ export default function DashboardScreen({ navigation }) {
         checkOfflineStatus();
     }, []);
 
-    useFocusEffect(
-        useCallback(() => {
-            refreshDashboard();
-        }, [])
-    );
+    useEffect(() => {
+        if (navigation) {
+            const unsubscribe = navigation.addListener('focus', () => {
+                refreshDashboard();
+            });
+            return unsubscribe;
+        }
+    }, [navigation]);
 
     // Request audio permission on mount
     useEffect(() => {
