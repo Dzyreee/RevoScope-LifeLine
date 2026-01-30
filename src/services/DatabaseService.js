@@ -24,6 +24,7 @@ export const initDB = async () => {
       heart_rate INTEGER,
       severity_score INTEGER DEFAULT 0,
       confidence_score INTEGER DEFAULT 0,
+      esi_level INTEGER DEFAULT 5,
       triage_advice TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
@@ -35,6 +36,7 @@ export const initDB = async () => {
       diagnosis TEXT,
       severity_score INTEGER,
       confidence_score INTEGER,
+      esi_level INTEGER,
       status TEXT, -- 'Critical', 'Monitoring', 'Normal'
       heart_rate INTEGER,
       timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -44,27 +46,27 @@ export const initDB = async () => {
 };
 
 export const addPatient = async (patient) => {
-  const { full_name, age, sex, history, profile_image, heart_rate, severity_score, confidence_score, triage_advice } = patient;
+  const { full_name, age, sex, history, profile_image, heart_rate, severity_score, confidence_score, esi_level, triage_advice } = patient;
   const database = await getDB();
   const result = await database.runAsync(
-    `INSERT INTO patients (full_name, age, sex, history, profile_image, heart_rate, severity_score, confidence_score, triage_advice) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-    [full_name, age, sex, history, profile_image, heart_rate || null, severity_score || 0, confidence_score || 0, triage_advice || '']
+    `INSERT INTO patients (full_name, age, sex, history, profile_image, heart_rate, severity_score, confidence_score, esi_level, triage_advice) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    [full_name, age, sex, history, profile_image, heart_rate || null, severity_score || 0, confidence_score || 0, esi_level || 5, triage_advice || '']
   );
   return result.lastInsertRowId;
 };
 
-export const addScan = async (patientId, audioUri, diagnosis, severityScore, confidenceScore, status, triageAdvice = '', heartRate = null) => {
+export const addScan = async (patientId, audioUri, diagnosis, severityScore, confidenceScore, esiLevel, status, triageAdvice = '', heartRate = null) => {
   const database = await getDB();
   // Insert scan
   await database.runAsync(
-    `INSERT INTO scans (patient_id, audio_uri, diagnosis, severity_score, confidence_score, status, heart_rate) VALUES (?, ?, ?, ?, ?, ?, ?);`,
-    [patientId, audioUri, diagnosis, severityScore, confidenceScore, status, heartRate]
+    `INSERT INTO scans (patient_id, audio_uri, diagnosis, severity_score, confidence_score, esi_level, status, heart_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+    [patientId, audioUri, diagnosis, severityScore, confidenceScore, esiLevel, status, heartRate]
   );
 
   // Update patient's latest scores, triage advice, and heart rate
   await database.runAsync(
-    `UPDATE patients SET severity_score = ?, confidence_score = ?, triage_advice = ?, heart_rate = ? WHERE id = ?;`,
-    [severityScore, confidenceScore, triageAdvice, heartRate, patientId]
+    `UPDATE patients SET severity_score = ?, confidence_score = ?, esi_level = ?, triage_advice = ?, heart_rate = ? WHERE id = ?;`,
+    [severityScore, confidenceScore, esiLevel, triageAdvice, heartRate, patientId]
   );
 };
 
