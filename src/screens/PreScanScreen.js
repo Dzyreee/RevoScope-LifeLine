@@ -7,7 +7,7 @@ import * as DocumentPicker from 'expo-document-picker';
 const MIN_AUDIO_DURATION = 15; // seconds
 
 export default function PreScanScreen({ route, navigation }) {
-    const { patientId } = route.params;
+    const { patientId, includeHeartRate } = route.params;
     const [isStarting, setIsStarting] = useState(false);
     const [audioLevel, setAudioLevel] = useState(0);
     const [micWorking, setMicWorking] = useState(false);
@@ -67,7 +67,7 @@ export default function PreScanScreen({ route, navigation }) {
         setIsStarting(true);
         await stopTestRecording();
         setTimeout(() => {
-            navigation.replace('Result', { patientId, mode: 'scan' });
+            navigation.replace('Result', { patientId, mode: 'scan', includeHeartRate });
         }, 300);
     };
 
@@ -108,7 +108,8 @@ export default function PreScanScreen({ route, navigation }) {
                     patientId,
                     mode: 'upload',
                     audioUri: file.uri,
-                    audioDuration: durationSeconds
+                    audioDuration: durationSeconds,
+                    includeHeartRate
                 });
             } else {
                 Alert.alert('Error', 'Could not read audio file duration.');
@@ -148,6 +149,19 @@ export default function PreScanScreen({ route, navigation }) {
                 <Text className="text-base text-gray-500 text-center mb-6">
                     Recording will capture {MIN_AUDIO_DURATION} seconds{'\n'}for 3-5 respiratory cycles.
                 </Text>
+
+                {/* PCG Heart Rate Tip */}
+                {includeHeartRate && (
+                    <View className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6 w-full flex-row items-start">
+                        <Ionicons name="information-circle" size={22} color="#3B82F6" style={{ marginTop: 2, marginRight: 10 }} />
+                        <View className="flex-1">
+                            <Text className="font-bold text-blue-900 mb-1">Heart Rate Analysis Enabled</Text>
+                            <Text className="text-blue-800 text-sm leading-5">
+                                Reviewing breathing sounds for heart palpitations. For best accuracy, place stethoscope firmly and minimize ambient noise.
+                            </Text>
+                        </View>
+                    </View>
+                )}
 
                 {/* Live Audio Level */}
                 <View className="w-full bg-gray-50 rounded-2xl p-4 border border-gray-100 mb-4">

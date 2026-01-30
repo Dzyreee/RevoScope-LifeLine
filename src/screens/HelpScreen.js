@@ -70,12 +70,8 @@ export default function HelpScreen({ navigation }) {
             <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }}>
                 {/* Hero Section */}
                 <View className="items-center py-8 px-6">
-                    <Image source={logoImage} style={{ width: 200, height: 60 }} resizeMode="contain" />
-                    <Text className="text-gray-500 text-center mt-4 text-base">
-                        AI-powered respiratory sound analysis for rapid triage decisions
-                    </Text>
+                    <Image source={logoImage} style={{ width: 500, height: 150 }} resizeMode="contain" />
                 </View>
-
                 {/* Steps */}
                 <View className="px-6">
                     <Text className="text-lg font-bold text-gray-800 mb-4">Getting Started</Text>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Image, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../context/AppContext';
@@ -19,6 +19,7 @@ export default function PatientIntakeScreen({ route, navigation }) {
     const [sex, setSex] = useState(existingData?.sex || null);
     const [history, setHistory] = useState(existingData?.history || '');
     const [photo, setPhoto] = useState(existingData?.profile_image || '');
+    const [includeHeartRate, setIncludeHeartRate] = useState(false);
 
     // Validation states
     const isNameTooLong = fullName.length > MAX_NAME_LENGTH;
@@ -121,7 +122,7 @@ export default function PatientIntakeScreen({ route, navigation }) {
                     confidence_score: 0,
                     triage_advice: 'Pending Scan'
                 });
-                navigation.replace('PreScan', { patientId: newId });
+                navigation.replace('PreScan', { patientId: newId, includeHeartRate });
             }
         } catch (e) {
             console.error(e);
@@ -237,23 +238,54 @@ export default function PatientIntakeScreen({ route, navigation }) {
                     </View>
                 </View>
 
+                {/* Heart Rate Scan Toggle */}
+                {!editMode && (
+                    <View className="mb-6 flex-row items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        <View className="flex-1 mr-4">
+                            <Text className="text-sm font-bold text-gray-800 mb-1">Scan Heart Rate?</Text>
+                            <Text className="text-xs text-gray-500">
+                                Analyze breathing sounds for heart rate estimation (PCG).
+                            </Text>
+                        </View>
+                        <Switch
+                            trackColor={{ false: '#D1D5DB', true: '#EF4444' }}
+                            thumbColor={'#FFFFFF'}
+                            ios_backgroundColor="#D1D5DB"
+                            onValueChange={setIncludeHeartRate}
+                            value={includeHeartRate}
+                        />
+                    </View>
+                )}
+
             </ScrollView>
 
             {/* Footer Button */}
             <View className="p-6 bg-white border-t border-gray-100 absolute bottom-0 left-0 right-0">
                 <TouchableOpacity
-                    className={`py-4 rounded-xl items-center ${(isNameTooLong || isAgeInvalid || isHistoryTooLong)
+                    style={styles.shadow}
+                    className={`py-4 rounded-xl items-center flex-row justify-center ${(isNameTooLong || isAgeInvalid || isHistoryTooLong)
                             ? 'bg-gray-300'
                             : 'bg-red-600'
                         }`}
                     onPress={handleSave}
                     disabled={isNameTooLong || isAgeInvalid || isHistoryTooLong}
                 >
-                    <Text className="text-white font-bold text-lg">
+                    <Text className="text-white font-bold text-lg mr-2">
                         {editMode ? 'Save Changes' : 'Proceed to Scan'}
                     </Text>
+                    {!editMode && <Ionicons name="arrow-forward" size={20} color="#fff" />}
                 </TouchableOpacity>
             </View>
         </View>
     );
 }
+
+const styles = {
+    shadow: {
+        shadowColor: '#EF4444',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+    }
+};

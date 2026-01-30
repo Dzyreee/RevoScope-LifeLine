@@ -66,6 +66,7 @@ import PreScanScreen from './src/screens/PreScanScreen';
 import ScanResultScreen from './src/screens/ScanResultScreen';
 import PatientDetailScreen from './src/screens/PatientDetailScreen';
 import HelpScreen from './src/screens/HelpScreen';
+import WelcomeScreen from './src/screens/WelcomeScreen';
 import LoginScreen from './src/screens/LoginScreen';
 
 const Stack = createNativeStackNavigator();
@@ -77,9 +78,9 @@ export default function App() {
     (async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
-        setInitialRoute(token ? 'Dashboard' : 'Login');
+        setInitialRoute(token ? 'Dashboard' : 'Welcome');
       } catch (e) {
-        setInitialRoute('Login');
+        setInitialRoute('Welcome');
       }
     })();
   }, []);
@@ -101,9 +102,10 @@ export default function App() {
             initialRouteName={initialRoute}
             screenOptions={{
               headerShown: false,
-              contentStyle: { backgroundColor: '#F8FAFC' }
+              contentStyle: { backgroundColor: '#FFF8F8' }
             }}
           >
+            <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Dashboard" component={DashboardScreen} />
             <Stack.Screen name="Intake" component={PatientIntakeScreen} />

@@ -20,6 +20,18 @@ export default function DashboardScreen({ navigation }) {
     const [audioLevel, setAudioLevel] = useState(0);
     const recordingRef = useRef(null);
     const audioLevelAnim = useRef(new Animated.Value(0)).current;
+    const [isOffline, setIsOffline] = useState(false);
+
+    useEffect(() => {
+        const checkOfflineStatus = async () => {
+            const token = await AsyncStorage.getItem('userToken');
+            if (token) {
+                const user = JSON.parse(token);
+                setIsOffline(!!user.offline);
+            }
+        };
+        checkOfflineStatus();
+    }, []);
 
     useFocusEffect(
         useCallback(() => {
@@ -107,42 +119,37 @@ export default function DashboardScreen({ navigation }) {
             <StatusBar style="dark" />
 
             {/* Header */}
-            <View className="pt-16 px-6 pb-4 bg-white border-b border-gray-100 flex-row justify-between items-center">
-                <Image source={logoImage} style={{ width: 280, height: 90 }} resizeMode="contain" />
-                <View className="flex-row items-center gap-2">
-                    {filter && (
+            <View className="pt-16 px-6 pb-4 bg-white border-b border-gray-100 flex-row justify-between items-center h-40">
+                <Image source={logoImage} style={{ width: 240, height: 90, marginTop: 10, marginLeft: -30 }} resizeMode="contain" />
+                <View className="items-end justify-center h-full pt-4">
+                    <View className="flex-row items-center gap-2">
+                        {filter && (
+                            <TouchableOpacity
+                                className="h-10 w-10 bg-red-50 rounded-full items-center justify-center"
+                                onPress={() => setFilter(null)}
+                            >
+                                <Ionicons name="home" size={20} color="#DC2626" />
+                            </TouchableOpacity>
+                        )}
                         <TouchableOpacity
-                            className="h-11 w-11 bg-red-50 rounded-full items-center justify-center"
-                            onPress={() => setFilter(null)}
+                            className="h-10 w-10 bg-blue-50 rounded-full items-center justify-center shadow-sm"
+                            onPress={() => navigation.navigate('Help')}
+                            style={{ shadowColor: '#3B82F6', shadowOpacity: 0.1, shadowRadius: 3 }}
                         >
-                            <Ionicons name="home" size={22} color="#DC2626" />
+                            <Ionicons name="help-circle-outline" size={22} color="#3B82F6" />
                         </TouchableOpacity>
+                        <TouchableOpacity
+                            className="h-10 w-10 bg-gray-50 rounded-full items-center justify-center border border-gray-100 shadow-sm"
+                            onPress={() => setShowSettings(true)}
+                        >
+                            <Ionicons name="settings-outline" size={22} color="#374151" />
+                        </TouchableOpacity>
+                    </View>
+                    {isOffline && (
+                        <View className="bg-gray-100 px-3 py-1.5 rounded-full mt-3 border border-gray-200">
+                            <Text className="text-[10px] font-bold text-gray-500 tracking-wider">OFFLINE</Text>
+                        </View>
                     )}
-                    <TouchableOpacity
-                        className="h-11 w-11 bg-blue-50 rounded-full items-center justify-center"
-                        onPress={() => navigation.navigate('Help')}
-                    >
-                        <Ionicons name="help-circle-outline" size={24} color="#3B82F6" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        className="h-11 w-11 bg-gray-100 rounded-full items-center justify-center"
-                        onPress={() => setShowSettings(true)}
-                    >
-                        <Ionicons name="settings-outline" size={24} color="#374151" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        className="h-11 w-11 bg-gray-100 rounded-full items-center justify-center ml-2"
-                        onPress={async () => {
-                            try {
-                                await AsyncStorage.removeItem('userToken');
-                            } catch (e) {
-                                console.error('Failed to clear userToken', e);
-                            }
-                            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-                        }}
-                    >
-                        <Ionicons name="log-out-outline" size={22} color="#374151" />
-                    </TouchableOpacity>
                 </View>
             </View>
 
@@ -297,11 +304,11 @@ export default function DashboardScreen({ navigation }) {
                                     console.error('Failed to clear userToken', e);
                                 }
                                 setShowSettings(false);
-                                navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+                                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
                             }}
                         >
-                            <Ionicons name="log-out-outline" size={20} color="#DC2626" />
-                            <Text className="text-red-600 font-bold text-lg ml-2">Logout</Text>
+                            <Ionicons name={isOffline ? "log-in-outline" : "log-out-outline"} size={20} color="#DC2626" />
+                            <Text className="text-red-600 font-bold text-lg ml-2">{isOffline ? 'Log In' : 'Logout'}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
