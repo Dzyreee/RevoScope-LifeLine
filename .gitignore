@@ -1,1 +1,25 @@
-node_modules
+# Dependencies
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Python / AI
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+backend/data/
+backend/logs/
+backend/plots/
+backend/weights/*.pth
+!backend/weights/respiratory_ast_best.pth
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env.local
+.env

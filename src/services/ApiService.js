@@ -4,7 +4,7 @@
 
 // Backend URL - change this to your server IP when running on physical device
 const API_BASE_URL = __DEV__
-    ? 'http://localhost:8000'  // Development
+    ? 'http://192.168.1.161:8000'  // Use PC IP for Phone (Expo Go)
     : 'http://your-production-server.com'; // Production
 
 export const analyzeAudio = async (audioUri) => {
