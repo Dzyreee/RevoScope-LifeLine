@@ -7,6 +7,26 @@ const API_BASE_URL = __DEV__
     ? 'http://localhost:8000'  // Development
     : 'http://your-production-server.com'; // Production
 
+/**
+ * Helper to perform fetch with a timeout
+ */
+const fetchWithTimeout = async (url, options = {}, timeout = 15000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(id);
+        return response;
+    } catch (error) {
+        clearTimeout(id);
+        throw error;
+    }
+};
+
 export const analyzeAudio = async (audioUri) => {
     try {
         // Create form data
@@ -17,13 +37,11 @@ export const analyzeAudio = async (audioUri) => {
             name: 'recording.wav'
         });
 
-        const response = await fetch(`${API_BASE_URL}/analyze`, {
+        // 25 second timeout for heavy audio analysis
+        const response = await fetchWithTimeout(`${API_BASE_URL}/analyze`, {
             method: 'POST',
             body: formData,
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-        });
+        }, 25000);
 
         if (!response.ok) {
             throw new Error(`API error: ${response.status}`);
@@ -49,17 +67,16 @@ export const analyzeAudio = async (audioUri) => {
         console.error('API Error:', error);
         return {
             success: false,
-            error: error.message
+            error: error.name === 'AbortError' ? 'Analysis timed out' : error.message
         };
     }
 };
 
 export const checkBackendHealth = async () => {
     try {
-        const response = await fetch(`${API_BASE_URL}/health`, {
+        const response = await fetchWithTimeout(`${API_BASE_URL}/health`, {
             method: 'GET',
-            timeout: 5000
-        });
+        }, 4000); // 4 second timeout for health check
 
         if (response.ok) {
             const data = await response.json();
