@@ -170,35 +170,67 @@ async def analyze_audio(audio: UploadFile = File(...)):
         # Load and Preprocess Audio
         y, sr = librosa.load(tmp_path, sr=TARGET_SAMPLE_RATE, mono=True)
         
-        # Normalize audio (standardize to zero mean, unit variance) - Critical for AST
-        if len(y) > 0:
-            y = (y - np.mean(y)) / (np.std(y) + 1e-6)
+        # SLIDING WINDOW ANALYSIS
+        # AST needs ~5.12s inputs. We'll use 5s overlapping windows.
+        WINDOW_SIZE = TARGET_SAMPLE_RATE * 5  # 5 seconds
+        STRIDE = int(WINDOW_SIZE * 0.5)       # 50% overlap (2.5s)
         
-        # Pad or truncate to ~5-10s as needed by AST (standard is 10.24s usually, but we try 5s)
-        # We rely on the feature extractor to handle padding/truncation map
+        # If audio is shorter than window, pad it
+        if len(y) < WINDOW_SIZE:
+            y = np.pad(y, (0, WINDOW_SIZE - len(y)))
+            
+        # Create windows
+        windows = []
+        for i in range(0, len(y) - WINDOW_SIZE + 1, STRIDE):
+            window = y[i:i + WINDOW_SIZE]
+            windows.append(window)
+            
+        # If no windows (shouldn't happen due to padding), use whole clip
+        if not windows:
+            windows = [y]
+            
+        print(f"Processing {len(windows)} sliding windows...")
         
-        if feature_extractor:
-            # Force max_length=510 to match usage of saved weights (602 patches)
-            inputs = feature_extractor(
-                y, 
-                sampling_rate=TARGET_SAMPLE_RATE, 
-                return_tensors="pt",
-                max_length=510,
-                truncation=True,
-                padding="max_length"
-            )
-            input_values = inputs.input_values.to(device)
-        else:
-            raise HTTPException(500, "Feature extractor not initialized")
+        # Batch Processing
+        batch_probs = []
+        
+        for window in windows:
+            # Normalize window (Zero Mean, Unit Variance)
+            if len(window) > 0:
+                # Add small epsilon to avoid divide by zero for silent clips
+                window = (window - np.mean(window)) / (np.std(window) + 1e-6)
+            
+            if feature_extractor:
+                inputs = feature_extractor(
+                    window, 
+                    sampling_rate=TARGET_SAMPLE_RATE, 
+                    return_tensors="pt",
+                    max_length=510,
+                    truncation=True,
+                    padding="max_length"
+                )
+                input_values = inputs.input_values.to(device)
+                
+                # Inference
+                with torch.no_grad():
+                    outputs = model(input_values)
+                    logits = outputs.logits
+                    probs = F.softmax(logits, dim=1).cpu().numpy()[0]
+                    batch_probs.append(probs)
+            else:
+                raise HTTPException(500, "Feature extractor not initialized")
 
-        # Inference
-        with torch.no_grad():
-            outputs = model(input_values)
-            logits = outputs.logits
-            probs = F.softmax(logits, dim=1).cpu().numpy()[0]
+        # AGGREGATION (Max Pooling strategy)
+        # We take the maximum probability observed for each class across all windows.
+        # This ensures that if a Wheeze is heard clearly in *one* window, it's not washed out by 10 windows of silence.
+        batch_probs = np.array(batch_probs)
+        final_probs = np.max(batch_probs, axis=0)
         
-        class_id = int(np.argmax(probs))
-        confidence = float(probs[class_id] * 100)
+        # Re-normalize to sum to 1
+        final_probs = final_probs / (np.sum(final_probs) + 1e-6)
+        
+        class_id = int(np.argmax(final_probs))
+        confidence = float(final_probs[class_id] * 100)
         class_name = CLASS_NAMES[class_id]
         
         # Severity Logic
