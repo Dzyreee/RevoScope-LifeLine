@@ -9,7 +9,7 @@ const MAX_HISTORY_LENGTH = 1000;
 const MAX_AGE = 150;
 
 export default function PatientIntakeScreen({ route, navigation }) {
-    const { createPatient, updatePatient } = useApp();
+    const { createPatient, updatePatient, isTestingMode } = useApp();
 
     const editMode = route.params?.editMode || false;
     const existingData = route.params?.patientData || null;
@@ -129,6 +129,29 @@ export default function PatientIntakeScreen({ route, navigation }) {
             console.error(e);
             Alert.alert('Error', 'Could not save patient record.');
         }
+    };
+
+    const handleRandomize = () => {
+        const randomPatients = [
+            { name: 'James Wilson', age: '45', sex: 'Male', history: 'Mild asthma, seasonal allergies. Uses inhaler occasionally.' },
+            { name: 'Sarah Connor', age: '32', sex: 'Female', history: 'No clear history. Complains of shortness of breath after exercise.' },
+            { name: 'Robert Chen', age: '68', sex: 'Male', history: 'Chronic smoker (20 years), potential COPD signs.' },
+            { name: 'Emily Davis', age: '24', sex: 'Female', history: 'Recovering from acute bronchitis. Still has a persistent cough.' },
+            { name: 'Michael Jordan', age: '50', sex: 'Male', history: 'High blood pressure, history of pneumonia 5 years ago.' },
+            { name: 'Linda Martinez', age: '59', sex: 'Female', history: 'Diabetes Type 2. Reports wheezing at night.' },
+            { name: 'David Kim', age: '41', sex: 'Male', history: 'No significant prior history. Recent cold symptoms that worsened.' },
+            { name: 'Patricia O\'Neil', age: '75', sex: 'Female', history: 'Congestive heart failure, fluid retention issues.' },
+            { name: 'Thomas Anderson', age: '29', sex: 'Male', history: 'Healthy, active. Sudden onset of chest tightness.' },
+            { name: 'Jessica Brown', age: '35', sex: 'Female', history: 'Allergic to penicillin. Frequent sinus infections.' }
+        ];
+
+        const randomPatient = randomPatients[Math.floor(Math.random() * randomPatients.length)];
+
+        setFullName(randomPatient.name);
+        setAge(randomPatient.age);
+        setSex(randomPatient.sex);
+        setHistory(randomPatient.history);
+        setIncludeHeartRate(Math.random() > 0.5);
     };
 
     return (
@@ -257,6 +280,17 @@ export default function PatientIntakeScreen({ route, navigation }) {
                     </View>
                 )}
 
+                {/* Randomizer Button (Testing Mode Only) - Moved here for visibility */}
+                {isTestingMode && !editMode && (
+                    <TouchableOpacity
+                        className="mt-2 mb-6 bg-amber-100 p-4 rounded-xl border border-amber-300 flex-row items-center justify-center border-dashed"
+                        onPress={handleRandomize}
+                    >
+                        <Ionicons name="dice-outline" size={24} color="#D97706" />
+                        <Text className="text-amber-800 font-bold ml-2">Randomize Patient Data</Text>
+                    </TouchableOpacity>
+                )}
+
                 {/* Demo Presets (Hidden at bottom) */}
                 {!editMode && (
                     <View>
@@ -320,6 +354,8 @@ export default function PatientIntakeScreen({ route, navigation }) {
                         </View>
                     </View>
                 )}
+
+
 
             </ScrollView>
 

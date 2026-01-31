@@ -1,5 +1,52 @@
 {
-  "plugins": [
-    "expo-barcode-scanner"
-  ]
+  "expo": {
+    "name": "soundscope-triage-dashboard",
+    "slug": "soundscope-triage-dashboard",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.revoscope.lifeline",
+      "infoPlist": {
+        "NSCameraUsageDescription": "RevoScope needs access to your camera to scan QR codes for RevoMesh peer syncing.",
+        "NSMicrophoneUsageDescription": "RevoScope needs access to your microphone to analyze patient breathing sounds.",
+        "NSPhotoLibraryUsageDescription": "RevoScope needs access to your photos to save medical reports."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.revoscope.lifeline",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow RevoScope to access your camera",
+          "microphonePermission": "Allow RevoScope to access your microphone",
+          "recordAudioAndroid": true
+        }
+      ],
+      "expo-barcode-scanner"
+    ]
+  }
 }

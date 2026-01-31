@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Animated, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Animated, Alert, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as DocumentPicker from 'expo-document-picker';
+
+const placementGuideImage = require('../assets/lung.png');
 
 const MIN_AUDIO_DURATION = 15; // seconds
 
@@ -137,11 +139,13 @@ export default function PreScanScreen({ route, navigation }) {
             </View>
 
             <View className="flex-1 items-center justify-center px-6">
-                {/* Microphone Icon */}
-                <View className="h-28 w-28 bg-red-50 rounded-full items-center justify-center mb-5">
-                    <View className="h-20 w-20 bg-red-100 rounded-full items-center justify-center">
-                        <Ionicons name="mic" size={42} color="#DC2626" />
-                    </View>
+                {/* Stethoscope Placement Guide */}
+                <View className="items-center justify-center mb-5">
+                    <Image
+                        source={placementGuideImage}
+                        style={{ width: 200, height: 200, borderRadius: 16 }}
+                        resizeMode="contain"
+                    />
                 </View>
 
                 <Text className="text-2xl font-bold text-gray-800 text-center mb-2">

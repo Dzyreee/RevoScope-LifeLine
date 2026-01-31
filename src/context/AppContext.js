@@ -7,6 +7,7 @@ export const AppProvider = ({ children }) => {
     const [dashboardStats, setDashboardStats] = useState({ total: 0, critical: 0, monitoring: 0, normal: 0 });
     const [patients, setPatients] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isTestingMode, setIsTestingMode] = useState(false);
 
     const refreshDashboard = async () => {
         try {
@@ -49,7 +50,9 @@ export const AppProvider = ({ children }) => {
             updatePatient: DB.updatePatient,
             recordScan: (patientId, audioUri, diagnosis, severityScore, confidenceScore, esiLevel, status, triageAdvice, heartRate) => DB.addScan(patientId, audioUri, diagnosis, severityScore, confidenceScore, esiLevel, status, triageAdvice, heartRate),
             deletePatient: DB.deletePatient,
-            getHistory: DB.getPatientHistory
+            getHistory: DB.getPatientHistory,
+            isTestingMode,
+            setIsTestingMode
         }}>
             {children}
         </AppContext.Provider>

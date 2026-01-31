@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Modal, Animated, Image, Alert, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Modal, Animated, Image, Alert, StyleSheet, Dimensions, Switch, TextInput, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
@@ -8,15 +8,16 @@ import { Audio } from 'expo-av';
 import { useApp } from '../context/AppContext';
 import StatusFilterCard from '../components/StatusFilterCard';
 import PatientQueueCard from '../components/PatientQueueCard';
-import QRCode from 'react-native-qrcode-svg';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+// import QRCode from 'react-native-qrcode-svg'; // Removed for demo
+// import { CameraView, useCameraPermissions } from 'expo-camera'; // Removed for demo
 import { compressPacket, decompressPacket } from '../services/CompressionService';
+import { addPatient } from '../services/DatabaseService';
 
 // Import logo
 const logoImage = require('../assets/logo.png');
 
 export default function DashboardScreen({ navigation }) {
-    const { dashboardStats, patients, refreshDashboard, resetDatabase } = useApp();
+    const { dashboardStats, patients, refreshDashboard, resetDatabase, isTestingMode, setIsTestingMode } = useApp();
     const [filter, setFilter] = useState(null);
     const [showSettings, setShowSettings] = useState(false);
     const [showSync, setShowSync] = useState(false);
@@ -26,32 +27,53 @@ export default function DashboardScreen({ navigation }) {
     const audioLevelAnim = useRef(new Animated.Value(0)).current;
     const [isOffline, setIsOffline] = useState(false);
 
-    // Sync States
-    const [permission, requestPermission] = useCameraPermissions();
-    const [scanned, setScanned] = useState(false);
-    const [syncMode, setSyncMode] = useState('send'); // 'send' or 'scan'
-    const [scannerActive, setScannerActive] = useState(false);
+    // Sync Simulation States
+    const [isScanning, setIsScanning] = useState(false);
+    const [foundPeers, setFoundPeers] = useState([]);
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [syncProgress, setSyncProgress] = useState(0);
+    const [syncLog, setSyncLog] = useState([]);
 
-    useEffect(() => {
-        if (syncMode === 'scan' && (!permission || !permission.granted)) {
-            requestPermission();
-        }
-    }, [syncMode, permission]);
+    // Mock Peer Data
+    const MOCK_PEER = { id: 'dev_unit_04', name: 'Triage Unit #04', distance: 'Nearby' };
 
-    const handleBarCodeScanned = ({ type, data }) => {
-        setScanned(true);
-        setScannerActive(false);
-        try {
-            const receivedData = decompressPacket(data);
-            if (receivedData && Array.isArray(receivedData)) {
-                Alert.alert("Sync Successful", `Received ${receivedData.length} patient records via QR Mesh.`);
-            } else {
-                Alert.alert("Invalid Data", "QR Code does not contain valid patient data.");
-            }
-        } catch (e) {
-            Alert.alert("Scan Error", "Could not parse QR data.");
-        }
+    const startScan = () => {
+        setIsScanning(true);
+        setFoundPeers([]);
+        setSyncLog(prev => [...prev, 'Scanning for nearby RevoMesh nodes...']);
+
+        // Simulate finding a peer after 2 seconds
+        setTimeout(() => {
+            setIsScanning(false);
+            setFoundPeers([MOCK_PEER]);
+            setSyncLog(prev => [...prev, `Found node: ${MOCK_PEER.name} (${MOCK_PEER.distance})`]);
+        }, 2500);
     };
+
+    const startSync = (peer) => {
+        setIsSyncing(true);
+        setSyncProgress(0);
+        setSyncLog(prev => [...prev, `Initiating handshake with ${peer.name}...`]);
+
+        // Simulate connection and sync progress
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += Math.random() * 0.2;
+            if (progress >= 1) {
+                progress = 1;
+                clearInterval(interval);
+                setIsSyncing(false);
+                setSyncLog(prev => [...prev, 'Sync packet received.', 'Decrypting data...', 'Merge complete.']);
+
+                // Simulate receiving new data (optional: actually add a dummy patient)
+                Alert.alert("Sync Complete", `Successfully exchanged data with ${peer.name}. Database updated.`);
+                // In a real scenario, we'd merging data here. 
+                // For demo, we just show success.
+            }
+            setSyncProgress(progress);
+        }, 500);
+    };
+
 
     useEffect(() => {
         const checkOfflineStatus = async () => {
@@ -166,7 +188,7 @@ export default function DashboardScreen({ navigation }) {
                             className="h-10 w-10 bg-indigo-50 rounded-full items-center justify-center shadow-sm border border-indigo-100"
                             onPress={() => setShowSync(true)}
                         >
-                            <Ionicons name="qr-code-outline" size={20} color="#4F46E5" />
+                            <Ionicons name="radio-outline" size={20} color="#4F46E5" />
                         </TouchableOpacity>
                         <TouchableOpacity
                             className="h-10 w-10 bg-gray-50 rounded-full items-center justify-center border border-gray-100 shadow-sm"
@@ -250,108 +272,98 @@ export default function DashboardScreen({ navigation }) {
                 )}
             </ScrollView>
 
-            {/* Sync Modal */}
+            {/* Simulated P2P Sync Modal */}
             <Modal visible={showSync} transparent animationType="slide">
                 <View className="flex-1 bg-black/60 justify-end">
-                    <View className="bg-white rounded-t-3xl p-6 pb-8" style={{ height: '90%' }}>
+                    <View className="bg-white rounded-t-3xl p-6 pb-8" style={{ height: '70%' }}>
                         <View className="flex-row justify-between items-center mb-6">
                             <View>
-                                <Text className="text-2xl font-bold text-gray-800">RevoMesh Sync</Text>
-                                <Text className="text-sm text-green-600 font-bold">● OFFLINE MESH ACTIVE</Text>
+                                <Text className="text-2xl font-bold text-gray-800">RevoMesh Peer Sync</Text>
+                                <Text className="text-sm text-indigo-600 font-bold">● P2P BLUETOOTH MESH</Text>
                             </View>
                             <TouchableOpacity onPress={() => setShowSync(false)} className="bg-gray-100 p-2 rounded-full">
                                 <Ionicons name="close" size={24} color="#6B7280" />
                             </TouchableOpacity>
                         </View>
 
-                        <View className="flex-row bg-gray-100 p-1 rounded-xl mb-6">
-                            <TouchableOpacity
-                                className={`flex-1 py-3 rounded-xl items-center ${syncMode === 'send' ? 'bg-white shadow-sm' : ''}`}
-                                onPress={() => setSyncMode('send')}
-                            >
-                                <Text className={`font-bold ${syncMode === 'send' ? 'text-indigo-600' : 'text-gray-500'}`}>Share My Data</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                className={`flex-1 py-3 items-center rounded-xl ${syncMode === 'scan' ? 'bg-white shadow-sm' : ''}`}
-                                onPress={() => {
-                                    setSyncMode('scan');
-                                    setScanned(false);
-                                    setScannerActive(true);
-                                }}
-                            >
-                                <Text className={`font-bold ${syncMode === 'scan' ? 'text-indigo-600' : 'text-gray-500'}`}>Scan Peer</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <Text className="text-gray-500 text-sm mb-4">
+                            Seamlessly auto-sync patient records with nearby triage units without internet connection.
+                        </Text>
 
-                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
-                            {syncMode === 'send' ? (
-                                <View className="items-center w-full">
-                                    <View className="bg-white p-6 rounded-3xl items-center shadow-lg border border-gray-100 mb-6">
-                                        <QRCode
-                                            value={compressPacket(patients)}
-                                            size={220}
-                                            color="black"
-                                            backgroundColor="white"
-                                        />
-                                        <View className="mt-4 flex-row items-center">
-                                            <Ionicons name="cloud-upload" size={20} color="#4F46E5" />
-                                            <Text className="text-indigo-600 font-bold ml-2">Broadcasting {patients.length} Records</Text>
+                        <View className="bg-gray-50 rounded-2xl p-4 flex-1 border border-gray-100 relative overflow-hidden">
+                            {/* Radar Scan Animation UI */}
+                            {isScanning && (
+                                <View className="absolute z-10 inset-0 bg-white/50 items-center justify-center">
+                                    <View className="w-48 h-48 rounded-full border-4 border-indigo-100 items-center justify-center animate-pulse">
+                                        <View className="w-32 h-32 rounded-full border-4 border-indigo-200 items-center justify-center">
+                                            <ActivityIndicator size="large" color="#4F46E5" />
                                         </View>
                                     </View>
-
-                                    <Text className="text-gray-500 text-center mb-6 w-3/4">
-                                        Ask another volunteer to scan this code to sync your patient data to their device.
-                                    </Text>
-
-                                    <View className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 w-full">
-                                        <View className="flex-row justify-between mb-2">
-                                            <Text className="text-indigo-900 font-bold">Data Packet Size</Text>
-                                            <Text className="text-indigo-600">{packetSizeMsg}</Text>
-                                        </View>
-                                        <View className="flex-row justify-between">
-                                            <Text className="text-indigo-900 font-bold">Protocol</Text>
-                                            <Text className="text-indigo-600">RevoMesh V1 (Gzip)</Text>
-                                        </View>
-                                    </View>
-                                </View>
-                            ) : (
-                                <View className="w-full h-96 bg-gray-900 rounded-3xl overflow-hidden relative items-center justify-center">
-                                    {scannerActive ? (
-                                        <View className="items-center">
-                                            <Ionicons name="camera-outline" size={64} color="#6B7280" />
-                                            <Text className="text-gray-500 mt-4 mb-6 text-center px-8">
-                                                Camera disabled for stability.{'\n'}Use simulation on Simulator.
-                                            </Text>
-
-                                            <TouchableOpacity
-                                                className="bg-indigo-600 px-6 py-3 rounded-xl flex-row items-center mb-4"
-                                                onPress={() => handleBarCodeScanned({
-                                                    type: 'qr',
-                                                    data: compressPacket([{ id: 'sim_1', name: 'Sim Patient', esi_level: 2 }])
-                                                })}
-                                            >
-                                                <Ionicons name="cube-outline" size={20} color="#fff" />
-                                                <Text className="text-white font-bold ml-2">Simulate Scan (Debug)</Text>
-                                            </TouchableOpacity>
-
-                                            <TouchableOpacity
-                                                className="border border-gray-700 px-4 py-2 rounded-lg"
-                                                onPress={() => Alert.alert("Real Camera", "Real camera access requires a physical device.")}
-                                            >
-                                                <Text className="text-gray-400">Enable Real Camera</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    ) : (
-                                        <TouchableOpacity
-                                            onPress={() => setScannerActive(true)}
-                                            className="bg-gray-800 px-6 py-3 rounded-full"
-                                        >
-                                            <Text className="text-white font-bold">Activate Scanner</Text>
-                                        </TouchableOpacity>
-                                    )}
+                                    <Text className="text-indigo-600 font-bold mt-4 animate-bounce">Scanning Grid...</Text>
                                 </View>
                             )}
-                        </ScrollView>
+
+                            {/* Peers List */}
+                            <Text className="text-xs font-bold text-gray-400 uppercase mb-2">Nearby Nodes</Text>
+                            {/* Log */}
+                            <ScrollView className="mb-4 h-24" contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}>
+                                {syncLog.map((log, i) => (
+                                    <Text key={i} className="text-xs text-gray-500 font-mono">[{new Date().toLocaleTimeString()}] {log}</Text>
+                                ))}
+                            </ScrollView>
+
+                            {foundPeers.length === 0 && !isScanning ? (
+                                <View className="flex-1 items-center justify-center opacity-50">
+                                    <Ionicons name="planet-outline" size={48} color="#9CA3AF" />
+                                    <Text className="text-gray-400 mt-2">No active peers detected</Text>
+                                </View>
+                            ) : (
+                                foundPeers.map(peer => (
+                                    <View key={peer.id} className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm mb-3 flex-row items-center justify-between">
+                                        <View className="flex-row items-center">
+                                            <View className="w-10 h-10 bg-indigo-50 rounded-full items-center justify-center mr-3">
+                                                <Ionicons name="bluetooth" size={20} color="#4F46E5" />
+                                            </View>
+                                            <View>
+                                                <Text className="text-gray-800 font-bold">{peer.name}</Text>
+                                                <Text className="text-green-600 text-xs font-bold">● {peer.distance}</Text>
+                                            </View>
+                                        </View>
+
+                                        {!isSyncing ? (
+                                            <TouchableOpacity
+                                                onPress={() => startSync(peer)}
+                                                className="bg-indigo-600 px-4 py-2 rounded-lg"
+                                            >
+                                                <Text className="text-white font-bold text-xs">Auto-Sync</Text>
+                                            </TouchableOpacity>
+                                        ) : (
+                                            <View className="w-24">
+                                                <View className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                    <View
+                                                        className="h-full bg-indigo-500"
+                                                        style={{ width: `${syncProgress * 100}%` }}
+                                                    />
+                                                </View>
+                                                <Text className="text-[10px] text-center text-indigo-500 mt-1">Transferring...</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                ))
+                            )}
+
+                        </View>
+
+                        {/* Scan Button */}
+                        {!isScanning && !isSyncing && (
+                            <TouchableOpacity
+                                className="bg-gray-900 w-full py-4 rounded-xl items-center mt-4 active:bg-gray-800"
+                                onPress={startScan}
+                            >
+                                <Ionicons name="refresh" size={20} color="#fff" />
+                                <Text className="text-white font-bold text-lg ml-2">Scan for Peers</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
             </Modal>
@@ -379,6 +391,21 @@ export default function DashboardScreen({ navigation }) {
                         {showDevMenu && (
                             <View className="bg-gray-50 p-4 rounded-xl mb-4 border border-gray-200">
                                 <Text className="text-sm font-bold text-gray-500 uppercase mb-3">Developer Options</Text>
+
+                                <View className="bg-white p-3 rounded-lg border border-gray-100 flex-row items-center justify-between mb-3">
+                                    <View className="flex-row items-center">
+                                        <Ionicons name="flask-outline" size={20} color="#F59E0B" />
+                                        <Text className="text-gray-700 font-medium ml-2">Testing / Demo Mode</Text>
+                                    </View>
+                                    <Switch
+                                        trackColor={{ false: '#D1D5DB', true: '#F59E0B' }}
+                                        thumbColor={'#FFFFFF'}
+                                        ios_backgroundColor="#D1D5DB"
+                                        onValueChange={setIsTestingMode}
+                                        value={isTestingMode}
+                                    />
+                                </View>
+
                                 <TouchableOpacity
                                     className="bg-red-100 p-3 rounded-lg flex-row items-center"
                                     onPress={async () => {
