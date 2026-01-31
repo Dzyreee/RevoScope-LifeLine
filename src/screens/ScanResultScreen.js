@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, Animated, Modal, Image, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useApp } from '../context/AppContext';
@@ -62,11 +62,16 @@ export default function ScanResultScreen({ route, navigation }) {
     const recordingRef = useRef(null);
     const recordedUriRef = useRef(null);
     const audioLevelAnim = useRef(new Animated.Value(0)).current;
+    const [breathingText, setBreathingText] = useState("Breathe In...");
+    const [showDirections, setShowDirections] = useState(false);
+    const directionImage = require('../assets/directionLung.jpg');
+    const breathAnim = useRef(new Animated.Value(1)).current;
     const audioHistory = useRef([]);
 
     useEffect(() => {
         if (mode === 'scan') {
             startRecording();
+            startBreathingAnimation();
         } else if (mode === 'upload') {
             analyzeWithAPI(audioUri);
         }
@@ -75,6 +80,37 @@ export default function ScanResultScreen({ route, navigation }) {
             stopRecording();
         };
     }, []);
+
+    const startBreathingAnimation = () => {
+        const inhaleDuration = 2000;
+        const exhaleDuration = 3000;
+
+        const breatheCycle = () => {
+            // Inhale
+            setBreathingText("Breathe In...");
+            Animated.timing(breathAnim, {
+                toValue: 1.5,
+                duration: inhaleDuration,
+                useNativeDriver: true,
+            }).start(() => {
+                // Exhale (callback after inhale finishes)
+                setBreathingText("Breathe Out...");
+                Animated.timing(breathAnim, {
+                    toValue: 1,
+                    duration: exhaleDuration,
+                    useNativeDriver: true,
+                }).start(() => {
+                    // Loop if still recording (checked via ref or simple recursion if component mounted)
+                    // Simple recursion works here as unmount cleans up animations
+                    if (phase === 'recording') {
+                        breatheCycle();
+                    }
+                });
+            });
+        };
+
+        breatheCycle();
+    };
 
 
 
@@ -494,13 +530,25 @@ export default function ScanResultScreen({ route, navigation }) {
                     <Text className="text-2xl font-bold text-gray-800">Recording...</Text>
                     <Text className="text-gray-500 mt-1 mb-5">Capturing respiratory sounds</Text>
 
-                    {/* Spectral Gating / Noise Warning */}
-                    {audioLevel > 0.8 && (
-                        <View className="mb-6 bg-red-100 px-4 py-2 rounded-lg flex-row items-center border border-red-200">
-                            <Ionicons name="warning" size={20} color="#DC2626" />
-                            <Text className="text-red-700 font-bold ml-2">TOO LOUD: Move away!</Text>
+                    {/* Breathing Guide */}
+                    <View className="my-8 items-center justify-center" style={{ height: 160 }}>
+                        <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center', width: 120, height: 120 }}>
+                            <Animated.View
+                                style={{
+                                    transform: [{ scale: breathAnim }],
+                                    width: 100,
+                                    height: 100,
+                                    borderRadius: 50,
+                                    backgroundColor: '#DBEAFE',
+                                    position: 'absolute',
+                                }}
+                            />
+                            <View className="h-16 w-16 bg-blue-500 rounded-full items-center justify-center shadow-sm" style={{ zIndex: 10 }}>
+                                <Ionicons name="fitness-outline" size={32} color="#fff" />
+                            </View>
                         </View>
-                    )}
+                        <Text className="text-blue-600 font-bold text-xl mt-6">{breathingText}</Text>
+                    </View>
 
                     {/* Audio Level Meter */}
                     <View className="w-full mb-4">
@@ -526,7 +574,54 @@ export default function ScanResultScreen({ route, navigation }) {
                             {secondsElapsed}s / {SCAN_DURATION_SECONDS}s
                         </Text>
                     </View>
+
+                    {/* Directions Button */}
+                    <TouchableOpacity
+                        className="mt-6 flex-row items-center justify-center py-2 px-4 bg-blue-50 rounded-full border border-blue-100"
+                        onPress={() => setShowDirections(true)}
+                    >
+                        <Ionicons name="map-outline" size={18} color="#3B82F6" />
+                        <Text className="text-blue-600 font-bold ml-2">Directions</Text>
+                    </TouchableOpacity>
                 </View>
+
+                {/* Directions Modal */}
+                <Modal
+                    animationType="slide"
+                    transparent={true}
+                    visible={showDirections}
+                    onRequestClose={() => setShowDirections(false)}
+                >
+                    <View className="flex-1 bg-black/80 justify-center items-center p-6">
+                        <View className="bg-white rounded-3xl w-full max-w-sm overflow-hidden p-6 relative">
+                            <TouchableOpacity
+                                className="absolute top-4 right-4 z-10 bg-gray-100 rounded-full p-2"
+                                onPress={() => setShowDirections(false)}
+                            >
+                                <Ionicons name="close" size={24} color="#374151" />
+                            </TouchableOpacity>
+
+                            <Text className="text-xl font-bold text-gray-800 mb-4 text-center">Stethoscope Placement</Text>
+
+                            <Image
+                                source={directionImage}
+                                style={{ width: '100%', height: 300, borderRadius: 12 }}
+                                resizeMode="contain"
+                            />
+
+                            <Text className="text-gray-500 text-center mt-4">
+                                Place stethoscope on the indicated zones for best results.
+                            </Text>
+
+                            <TouchableOpacity
+                                className="bg-blue-600 py-3 rounded-xl mt-6 items-center"
+                                onPress={() => setShowDirections(false)}
+                            >
+                                <Text className="text-white font-bold">Close Guide</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </Modal>
             </View>
         );
     }
@@ -628,8 +723,8 @@ export default function ScanResultScreen({ route, navigation }) {
 
                             {/* Retake Button */}
                             <TouchableOpacity
-                                className="bg-red-600 w-full py-4 rounded-2xl flex-row items-center justify-center shadow-md mb-3"
-                                onPress={() => navigation.navigate('Dashboard')}
+                                className="bg-red-600 w-full py-4 rounded-2xl flex-row items-center justify-center shadow-md bg-red-600"
+                                onPress={() => navigation.navigate('PreScan', { patientId: patientId })}
                             >
                                 <Ionicons name="refresh" size={24} color="#fff" />
                                 <Text className="text-white font-bold text-lg ml-2">Retake Scan</Text>
