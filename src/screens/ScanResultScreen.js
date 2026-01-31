@@ -6,17 +6,11 @@ import { useApp } from '../context/AppContext';
 import { analyzeAudio, checkBackendHealth } from '../services/ApiService';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { ESI_CONFIG } from '../constants/Config';
 
 const SCAN_DURATION_SECONDS = 15; // 15 seconds for 3-5 respiratory cycles
 
-// ESI Level configurations
-const ESI_CONFIG = {
-    1: { name: 'CRITICAL', color: '#DC2626' },
-    2: { name: 'URGENT', color: '#EA580C' },
-    3: { name: 'MODERATE', color: '#F59E0B' },
-    4: { name: 'LOW', color: '#FACC15' },
-    5: { name: 'STABLE', color: '#10B981' },
-};
+// ESI Level configurations are now imported from ../constants/Config
 
 // Fallback classification when API unavailable
 const classifyRespiratorySound = (audioFeatures) => {
@@ -57,15 +51,12 @@ const classifyRespiratorySound = (audioFeatures) => {
 
 export default function ScanResultScreen({ route, navigation }) {
     const { recordScan, refreshDashboard } = useApp();
-    const { patientId, mode, audioUri, audioDuration } = route.params;
-
-    const [phase, setPhase] = useState(mode === 'scan' ? 'recording' : 'analyzing');
+    const { patientId, mode, audioUri, audioDuration, includeHeartRate, scanData } = route.params;
+    const [phase, setPhase] = useState(mode === 'scan' ? 'recording' : mode === 'view' ? 'result' : 'analyzing');
     const [recordProgress, setRecordProgress] = useState(0);
     const [audioLevel, setAudioLevel] = useState(0);
-    const [result, setResult] = useState(null);
+    const [result, setResult] = useState(mode === 'view' ? (scanData || {}) : null);
     const [usingRealAI, setUsingRealAI] = useState(false);
-    const [sound, setSound] = useState(null);
-    const [isPlaying, setIsPlaying] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
 
     const recordingRef = useRef(null);
@@ -79,65 +70,13 @@ export default function ScanResultScreen({ route, navigation }) {
         } else if (mode === 'upload') {
             analyzeWithAPI(audioUri);
         }
+        // mode === 'view' does nothing here as data is already set
         return () => {
             stopRecording();
-            if (sound) {
-                sound.unloadAsync();
-            }
         };
     }, []);
 
-    // Audio playback handlers
-    const playAudio = async () => {
-        try {
-            // Get audio URI from either recorded ref (review phase) or result (results screen)
-            const audioUri = recordedUriRef.current || result?.audio_uri;
-            if (!audioUri) {
-                console.log('No audio URI available');
-                return;
-            }
 
-            if (sound) {
-                // Resume if paused
-                await sound.playAsync();
-                setIsPlaying(true);
-            } else {
-                // Load and play
-                const { sound: newSound } = await Audio.Sound.createAsync(
-                    { uri: audioUri },
-                    { shouldPlay: true },
-                    (status) => {
-                        if (status.didJustFinish) {
-                            setIsPlaying(false);
-                        }
-                    }
-                );
-                setSound(newSound);
-                setIsPlaying(true);
-            }
-        } catch (error) {
-            console.error('Error playing audio:', error);
-        }
-    };
-
-    const pauseAudio = async () => {
-        try {
-            if (sound) {
-                await sound.pauseAsync();
-                setIsPlaying(false);
-            }
-        } catch (error) {
-            console.error('Error pausing audio:', error);
-        }
-    };
-
-    const togglePlayback = () => {
-        if (isPlaying) {
-            pauseAudio();
-        } else {
-            playAudio();
-        }
-    };
 
     const handleExportPDF = async () => {
         if (!result) return;
@@ -152,8 +91,8 @@ export default function ScanResultScreen({ route, navigation }) {
       .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #EEE; padding-bottom: 20px; margin-bottom: 30px; }
       .logo { font-size: 24px; font-bold: bold; color: #DC2626; }
       .esi-badge { padding: 8px 16px; border-radius: 20px; font-weight: bold; color: white; }
-      .vitals-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 30px; }
-      .vital-card { padding: 15px; background: #F9FAFB; border-radius: 12px; text-align: center; border: 1px solid #E5E7EB; }
+      .vitals-grid { display: flex; gap: 20px; justify-content: center; margin-bottom: 30px; }
+      .vital-card { flex: 1; min-width: 0; padding: 15px; background: #F9FAFB; border-radius: 12px; text-align: center; border: 1px solid #E5E7EB; }
       .vital-label { font-size: 12px; color: #6B7280; text-transform: uppercase; font-weight: bold; }
       .vital-value { font-size: 24px; font-weight: bold; margin: 5px 0; }
       .section { margin-bottom: 25px; }
@@ -193,11 +132,12 @@ export default function ScanResultScreen({ route, navigation }) {
           <div class="vital-label">Confidence</div>
           <div class="vital-value" style="color: #3B82F6">${result.confidence_score}%</div>
         </div>
+        ${result.heart_rate ? `
         <div class="vital-card" style="border-top: 4px solid #DC2626">
           <div class="vital-label">Heart Rate</div>
           <div class="vital-value" style="color: #DC2626">${result.heart_rate} <span style="font-size: 12px;">BPM</span></div>
-        </div>
-      </div>
+        </div>` : ''}
+              </div>
       <div class="vitals-grid">
         <div class="vital-card" style="border-top: 4px solid #10B981">
           <div class="vital-label">Respiratory Rate</div>
@@ -211,12 +151,7 @@ export default function ScanResultScreen({ route, navigation }) {
       <div class="diagnosis">${result.diagnosis}</div>
     </div>
 
-    <div class="section">
-      <div class="section-title">Clinical Recommendation</div>
-      <div class="recommendation-card" style="background-color: ${ESI_CONFIG[result.esi_level].color}10; border-left: 4px solid ${ESI_CONFIG[result.esi_level].color}">
-        ${result.recommendation}
-      </div>
-    </div>
+
 
     <div class="footer">
       This report was generated by RevoScope LifeLine AI.<br/>
@@ -241,6 +176,53 @@ export default function ScanResultScreen({ route, navigation }) {
     const analyzeWithAPI = async (uri) => {
         setPhase('analyzing');
 
+        // Handle Forced Demo Results
+        if (forcedResult) {
+            console.log(`Bypassing AI for forced demo result: ${forcedResult}`);
+            await new Promise(r => setTimeout(r, 2000)); // Short delay for realism
+
+            let presetData = {};
+            if (forcedResult === 'Normal') {
+                presetData = {
+                    diagnosis: 'Normal',
+                    severity: 12 + Math.floor(Math.random() * 8),
+                    confidence: 94 + Math.floor(Math.random() * 4),
+                    esiLevel: 5,
+                    recommendation: "Normal breath sounds. No further action needed.",
+                    heartRate: 72 + Math.floor(Math.random() * 10)
+                };
+            } else if (forcedResult === 'Crackles') {
+                presetData = {
+                    diagnosis: 'Crackles',
+                    severity: 62 + Math.floor(Math.random() * 12),
+                    confidence: 88 + Math.floor(Math.random() * 5),
+                    esiLevel: 3,
+                    recommendation: "Crackles detected. Consider bronchodilator therapy and monitor SpO2.",
+                    heartRate: 95 + Math.floor(Math.random() * 12)
+                };
+            } else if (forcedResult === 'Wheezing') {
+                presetData = {
+                    diagnosis: 'Wheezing',
+                    severity: 84 + Math.floor(Math.random() * 10),
+                    confidence: 91 + Math.floor(Math.random() * 6),
+                    esiLevel: 2,
+                    recommendation: "Significant wheezing detected. Urgent clinical evaluation required.",
+                    heartRate: 112 + Math.floor(Math.random() * 15)
+                };
+            }
+
+            await completeAnalysisWithAPIResult(presetData);
+            return;
+        }
+
+        // Safety fallback timer: if nothing happens in 30 seconds, force fallback
+        const safetyTimer = setTimeout(() => {
+            if (phase === 'analyzing') {
+                console.log('Safety timeout reached, forcing fallback UI');
+                completeAnalysis(extractAudioFeatures(audioHistory.current));
+            }
+        }, 30000);
+
         try {
             // Check if backend is available
             const health = await checkBackendHealth();
@@ -252,16 +234,18 @@ export default function ScanResultScreen({ route, navigation }) {
                 const apiResult = await analyzeAudio(uri);
 
                 if (apiResult.success) {
+                    clearTimeout(safetyTimer);
                     const { data } = apiResult;
                     await completeAnalysisWithAPIResult(data);
                     return;
                 }
             }
         } catch (e) {
-            console.log('API unavailable, using fallback:', e.message);
+            console.log('API unavailable or timed out, using fallback:', e.message);
         }
 
         // Fallback to simulated classification
+        clearTimeout(safetyTimer);
         console.log('Using fallback classification...');
         setUsingRealAI(false);
         const simulatedFeatures = {
@@ -325,22 +309,10 @@ export default function ScanResultScreen({ route, navigation }) {
 
     const handleRecordingComplete = async () => {
         await stopRecording();
-        setPhase('review'); // Go to review phase instead of analyzing
+        handleContinueToAnalysis(); // Go directly to analysis instead of review
     };
 
-    const handleRedoRecording = async () => {
-        // Reset and start new recording
-        if (sound) {
-            await sound.unloadAsync();
-            setSound(null);
-        }
-        setIsPlaying(false);
-        audioHistory.current = [];
-        setRecordProgress(0);
-        recordedUriRef.current = null;
-        setPhase('recording');
-        setTimeout(() => startRecording(), 100);
-    };
+
 
     const handleContinueToAnalysis = async () => {
         setPhase('analyzing');
@@ -404,9 +376,6 @@ export default function ScanResultScreen({ route, navigation }) {
 
     // Handle API result (from real AI model)
     const completeAnalysisWithAPIResult = async (data) => {
-        // Calculate respiratory rate (from API or simulate)
-        const respiratoryRate = data.respiratoryRate || Math.floor(12 + (data.severity / 100) * 18); // 12-30 range based on severity
-
         const scanResult = {
             diagnosis: data.diagnosis === 'Both' ? 'Crackles + Wheezes' : data.diagnosis,
             severity_score: data.severity,
@@ -414,7 +383,6 @@ export default function ScanResultScreen({ route, navigation }) {
             esi_level: data.esiLevel,
             recommendation: data.recommendation,
             heart_rate: data.heartRate,
-            respiratory_rate: respiratoryRate,
             timestamp: new Date().toISOString(),
             audio_uri: audioUri || recordedUriRef.current || 'recorded_audio',
             status: data.esiLevel <= 2 ? 'Critical' : data.esiLevel <= 3 ? 'Monitoring' : 'Normal'
@@ -430,6 +398,7 @@ export default function ScanResultScreen({ route, navigation }) {
             scanResult.diagnosis,
             scanResult.severity_score,
             scanResult.confidence_score,
+            data.esiLevel,
             scanResult.status,
             data.recommendation,
             data.heartRate
@@ -466,20 +435,16 @@ export default function ScanResultScreen({ route, navigation }) {
 
         // Generate simulated heart rate based on severity
         // Higher severity often correlates with higher heart rate (tachycardia)
-        let baseHr = 75;
-        if (severity > 70) baseHr = 110;
-        else if (severity > 40) baseHr = 95;
+        let simulatedHeartRate = null;
+        if (includeHeartRate) {
+            let baseHr = 75;
+            if (severity > 70) baseHr = 110;
+            else if (severity > 40) baseHr = 95;
 
-        const simulatedHeartRate = Math.floor(baseHr + (Math.random() * 20 - 10));
+            simulatedHeartRate = Math.floor(baseHr + (Math.random() * 20 - 10));
+        }
 
-        // Generate respiratory rate based on severity and diagnosis
-        // Normal: 12-20, Distressed: 20-30+
-        let baseRespRate = 16; // Normal baseline
-        if (severity > 70) baseRespRate = 26; // Tachypnea in severe cases
-        else if (severity > 40) baseRespRate = 22; // Elevated
-        else if (classification === 'Wheezes' || classification === 'Both') baseRespRate = 24; // Wheezing often increases RR
 
-        const simulatedRespiratoryRate = Math.floor(baseRespRate + (Math.random() * 6 - 3));
 
         const scanResult = {
             diagnosis: classification === 'Both' ? 'Crackles + Wheezes' : classification,
@@ -488,7 +453,6 @@ export default function ScanResultScreen({ route, navigation }) {
             esi_level: esiLevel,
             recommendation: triageAdvice,
             heart_rate: simulatedHeartRate,
-            respiratory_rate: simulatedRespiratoryRate,
             timestamp: new Date().toISOString(),
             audio_uri: audioUri || recordedUriRef.current || 'recorded_audio',
             status: esiLevel <= 2 ? 'Critical' : esiLevel <= 3 ? 'Monitoring' : 'Normal'
@@ -504,6 +468,7 @@ export default function ScanResultScreen({ route, navigation }) {
             scanResult.diagnosis,
             severity,
             Math.floor(confidence),
+            esiLevel,
             scanResult.status,
             triageAdvice,
             simulatedHeartRate
@@ -528,6 +493,14 @@ export default function ScanResultScreen({ route, navigation }) {
                     </View>
                     <Text className="text-2xl font-bold text-gray-800">Recording...</Text>
                     <Text className="text-gray-500 mt-1 mb-5">Capturing respiratory sounds</Text>
+
+                    {/* Spectral Gating / Noise Warning */}
+                    {audioLevel > 0.8 && (
+                        <View className="mb-6 bg-red-100 px-4 py-2 rounded-lg flex-row items-center border border-red-200">
+                            <Ionicons name="warning" size={20} color="#DC2626" />
+                            <Text className="text-red-700 font-bold ml-2">TOO LOUD: Move away!</Text>
+                        </View>
+                    )}
 
                     {/* Audio Level Meter */}
                     <View className="w-full mb-4">
@@ -558,65 +531,7 @@ export default function ScanResultScreen({ route, navigation }) {
         );
     }
 
-    // Review Phase - Added between recording and analyzing
-    if (phase === 'review') {
-        return (
-            <View className="flex-1 bg-white items-center justify-center">
-                <View className="bg-gray-50 p-8 rounded-3xl items-center mx-6 w-full max-w-sm">
-                    <View className="h-20 w-20 bg-green-600 rounded-full items-center justify-center mb-5">
-                        <Ionicons name="checkmark" size={42} color="#fff" />
-                    </View>
-                    <Text className="text-2xl font-bold text-gray-800">Recording Complete</Text>
-                    <Text className="text-gray-500 mt-1 mb-5 text-center">
-                        {SCAN_DURATION_SECONDS} seconds of respiratory sounds captured
-                    </Text>
 
-                    {/* Audio Playback */}
-                    <TouchableOpacity
-                        className="w-full bg-white p-4 rounded-2xl border-2 border-gray-200 mb-4 flex-row items-center justify-between"
-                        onPress={togglePlayback}
-                    >
-                        <View className="flex-row items-center flex-1">
-                            <View className="h-12 w-12 rounded-full bg-red-50 items-center justify-center mr-3">
-                                <Ionicons
-                                    name={isPlaying ? "pause" : "play"}
-                                    size={24}
-                                    color="#DC2626"
-                                />
-                            </View>
-                            <View className="flex-1">
-                                <Text className="text-base font-bold text-gray-800">
-                                    {isPlaying ? 'Playing...' : 'Play Recording'}
-                                </Text>
-                                <Text className="text-xs text-gray-500">Review audio quality</Text>
-                            </View>
-                        </View>
-                        <Ionicons name="volume-high" size={24} color="#9CA3AF" />
-                    </TouchableOpacity>
-
-                    {/* Action Buttons */}
-                    <View className="w-full gap-3">
-                        <TouchableOpacity
-                            className="py-4 rounded-xl items-center bg-red-600"
-                            onPress={handleContinueToAnalysis}
-                        >
-                            <Text className="text-white font-bold text-lg">Continue to Analysis</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            className="py-4 rounded-xl items-center bg-white border-2 border-gray-300"
-                            onPress={handleRedoRecording}
-                        >
-                            <View className="flex-row items-center">
-                                <Ionicons name="refresh" size={20} color="#374151" />
-                                <Text className="text-gray-700 font-bold text-base ml-2">Redo Recording</Text>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </View>
-        );
-    }
 
     // Analyzing Phase
     if (phase === 'analyzing') {
@@ -652,12 +567,16 @@ export default function ScanResultScreen({ route, navigation }) {
                         })}
                     </Text>
                 </View>
-                <View className="px-4 py-2 rounded-full" style={{ backgroundColor: esi.color + '20', borderWidth: 2, borderColor: esi.color }}>
-                    <Text style={{ color: esi.color, fontWeight: 'bold' }}>ESI-{result.esi_level}</Text>
+                <View className="items-end">
+                    <View className="px-4 py-2 rounded-xl mb-1" style={{ backgroundColor: esi.color }}>
+                        <Text className="text-white font-black text-lg">ESI {result.esi_level}</Text>
+                    </View>
+                    <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{esi.description}</Text>
                 </View>
             </View>
 
             <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
+
                 {/* Triple Score Display */}
                 <View className="flex-row justify-center gap-6 mb-6">
                     {/* Severity Circle */}
@@ -695,30 +614,43 @@ export default function ScanResultScreen({ route, navigation }) {
                     )}
                 </View>
 
-                {/* Audio Playback Control */}
-                {result.audio_uri && (
-                    <TouchableOpacity
-                        className="bg-white p-4 rounded-2xl border border-gray-100 mb-3 flex-row items-center justify-between"
-                        onPress={togglePlayback}
-                    >
-                        <View className="flex-row items-center flex-1">
-                            <View className="h-10 w-10 rounded-full bg-red-50 items-center justify-center mr-3">
-                                <Ionicons
-                                    name={isPlaying ? "pause" : "play"}
-                                    size={20}
-                                    color="#DC2626"
-                                />
+                {/* Quality Check & ESI Summary */}
+                <View className="mb-4">
+                    {result.confidence_score < 50 ? (
+                        <View className="bg-red-50 p-6 rounded-3xl border-2 border-red-200 items-center">
+                            <View className="h-16 w-16 bg-red-100 rounded-full items-center justify-center mb-3">
+                                <Ionicons name="alert-circle" size={40} color="#DC2626" />
                             </View>
-                            <View className="flex-1">
-                                <Text className="text-sm font-bold text-gray-800">
-                                    {isPlaying ? 'Playing' : 'Play'} Respiratory Audio
-                                </Text>
-                                <Text className="text-xs text-gray-500">Recorded respiratory sounds</Text>
+                            <Text className="text-red-800 font-black text-xl text-center">Inconclusive Result</Text>
+                            <Text className="text-red-600 text-center text-sm mt-2 mb-6">
+                                The AI confidence ({result.confidence_score}%) is below the required threshold for a reliable diagnosis. Please ensure correct stethoscope placement and retake the scan.
+                            </Text>
+                            <TouchableOpacity
+                                className="bg-red-600 w-full py-4 rounded-2xl flex-row items-center justify-center shadow-md bg-red-600"
+                                onPress={() => navigation.navigate('Dashboard')}
+                            >
+                                <Ionicons name="refresh" size={24} color="#fff" />
+                                <Text className="text-white font-bold text-lg ml-2">Retake Scan Now</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <View className="bg-white p-5 rounded-3xl border border-gray-100 flex-row items-center justify-between shadow-sm">
+                            <View className="flex-row items-center flex-1">
+                                <View className="h-12 w-12 rounded-2xl items-center justify-center mr-4" style={{ backgroundColor: esi.color }}>
+                                    <Ionicons name="medical" size={24} color="#fff" />
+                                </View>
+                                <View className="flex-1">
+                                    <Text className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Triage Status</Text>
+                                    <Text className="text-lg font-black text-gray-800" style={{ color: esi.color }}>{esi.name}</Text>
+                                </View>
+                            </View>
+                            <View className="items-end">
+                                <Text className="text-2xl font-black text-gray-800">ESI {result.esi_level}</Text>
+                                <Text className="text-[10px] font-bold text-gray-400">{result.confidence_score}% Confidence</Text>
                             </View>
                         </View>
-                        <Ionicons name="volume-high" size={20} color="#9CA3AF" />
-                    </TouchableOpacity>
-                )}
+                    )}
+                </View>
 
                 {/* AI Diagnosis */}
                 <View className="bg-white p-5 rounded-2xl border border-gray-100 mb-3">
@@ -771,35 +703,9 @@ export default function ScanResultScreen({ route, navigation }) {
                     </View>
                 )}
 
-                {/* Clinical Recommendation */}
-                <View className="p-5 rounded-2xl mb-3" style={{ backgroundColor: esi.color + '15' }}>
-                    <View className="flex-row items-center mb-3">
-                        <View className="h-8 w-8 rounded-full items-center justify-center" style={{ backgroundColor: esi.color }}>
-                            <Ionicons name="medical" size={18} color="#fff" />
-                        </View>
-                        <Text className="font-bold text-gray-800 ml-3 text-base">Clinical Recommendation</Text>
-                    </View>
-                    <Text className="text-gray-700 leading-6 text-base">{result.recommendation}</Text>
-                </View>
 
-                {/* Respiratory Rate */}
-                {result.respiratory_rate && (
-                    <View className="bg-white p-4 rounded-2xl border border-gray-100 flex-row items-center justify-between">
-                        <View className="flex-row items-center">
-                            <View className="h-10 w-10 rounded-full bg-green-50 items-center justify-center mr-3">
-                                <Ionicons name="pulse" size={24} color="#10B981" />
-                            </View>
-                            <View>
-                                <Text className="text-xs font-bold text-gray-400 uppercase">Respiratory Rate</Text>
-                                <Text className="text-sm text-gray-600 mt-1">Breaths per minute</Text>
-                            </View>
-                        </View>
-                        <View className="items-center">
-                            <Text className="text-4xl font-bold text-green-600">{result.respiratory_rate}</Text>
-                            <Text className="text-xs text-gray-500">/min</Text>
-                        </View>
-                    </View>
-                )}
+
+
 
                 {/* Export PDF Button */}
                 <TouchableOpacity
@@ -841,6 +747,6 @@ export default function ScanResultScreen({ route, navigation }) {
                     <Text className="text-white font-bold text-lg">Return to Dashboard</Text>
                 </TouchableOpacity>
             </View>
-        </View>
+        </View >
     );
 }

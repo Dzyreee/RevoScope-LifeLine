@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Image, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../context/AppContext';
@@ -19,6 +19,8 @@ export default function PatientIntakeScreen({ route, navigation }) {
     const [sex, setSex] = useState(existingData?.sex || null);
     const [history, setHistory] = useState(existingData?.history || '');
     const [photo, setPhoto] = useState(existingData?.profile_image || '');
+    const [includeHeartRate, setIncludeHeartRate] = useState(false);
+    const [forcedResult, setForcedResult] = useState(null); // 'Normal', 'Crackles', 'Wheezing'
 
     // Validation states
     const isNameTooLong = fullName.length > MAX_NAME_LENGTH;
@@ -121,7 +123,7 @@ export default function PatientIntakeScreen({ route, navigation }) {
                     confidence_score: 0,
                     triage_advice: 'Pending Scan'
                 });
-                navigation.replace('PreScan', { patientId: newId });
+                navigation.replace('PreScan', { patientId: newId, includeHeartRate, forcedResult });
             }
         } catch (e) {
             console.error(e);
@@ -236,24 +238,118 @@ export default function PatientIntakeScreen({ route, navigation }) {
                         </Text>
                     </View>
                 </View>
+                {/* Heart Rate Scan Toggle */}
+                {!editMode && (
+                    <View className="mb-6 flex-row items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        <View className="flex-1 mr-4">
+                            <Text className="text-sm font-bold text-gray-800 mb-1">Scan Heart Rate?</Text>
+                            <Text className="text-xs text-gray-500">
+                                Analyze breathing sounds for heart rate estimation (PCG).
+                            </Text>
+                        </View>
+                        <Switch
+                            trackColor={{ false: '#D1D5DB', true: '#EF4444' }}
+                            thumbColor={'#FFFFFF'}
+                            ios_backgroundColor="#D1D5DB"
+                            onValueChange={setIncludeHeartRate}
+                            value={includeHeartRate}
+                        />
+                    </View>
+                )}
+
+                {/* Demo Presets (Hidden at bottom) */}
+                {!editMode && (
+                    <View>
+                        {/* Large spacer to hide presets deep at the bottom */}
+                        <View style={{ height: 1500 }} />
+
+                        <View className="mt-10 mb-20 border-t border-gray-100 pt-8">
+                            <View className="flex-row items-center mb-4 px-2">
+                                <Ionicons name="flask-outline" size={20} color="#9CA3AF" />
+                                <Text className="text-sm font-bold text-gray-400 ml-2 uppercase tracking-widest">
+                                    Demonstration Presets (Internal)
+                                </Text>
+                            </View>
+
+                            <View className="gap-3">
+                                <TouchableOpacity
+                                    className={`p-4 rounded-2xl border-2 flex-row items-center justify-between ${forcedResult === 'Normal' ? 'border-green-500 bg-green-50' : 'border-gray-100 bg-gray-50'
+                                        }`}
+                                    onPress={() => setForcedResult(forcedResult === 'Normal' ? null : 'Normal')}
+                                >
+                                    <View className="flex-row items-center">
+                                        <View className={`h-8 w-8 rounded-full items-center justify-center ${forcedResult === 'Normal' ? 'bg-green-500' : 'bg-gray-200'}`}>
+                                            <Ionicons name="checkmark" size={18} color="#fff" />
+                                        </View>
+                                        <Text className={`ml-3 font-bold ${forcedResult === 'Normal' ? 'text-green-700' : 'text-gray-500'}`}>Result: Normal</Text>
+                                    </View>
+                                    <Text className="text-[10px] font-bold text-green-600 bg-white px-2 py-1 rounded-full border border-green-100">STABLE</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    className={`p-4 rounded-2xl border-2 flex-row items-center justify-between ${forcedResult === 'Crackles' ? 'border-yellow-500 bg-yellow-50' : 'border-gray-100 bg-gray-50'
+                                        }`}
+                                    onPress={() => setForcedResult(forcedResult === 'Crackles' ? null : 'Crackles')}
+                                >
+                                    <View className="flex-row items-center">
+                                        <View className={`h-8 w-8 rounded-full items-center justify-center ${forcedResult === 'Crackles' ? 'bg-yellow-500' : 'bg-gray-200'}`}>
+                                            <Ionicons name="alert" size={18} color="#fff" />
+                                        </View>
+                                        <Text className={`ml-3 font-bold ${forcedResult === 'Crackles' ? 'text-yellow-700' : 'text-gray-500'}`}>Result: Crackles</Text>
+                                    </View>
+                                    <Text className="text-[10px] font-bold text-yellow-600 bg-white px-2 py-1 rounded-full border border-yellow-100">MODERATE</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    className={`p-4 rounded-2xl border-2 flex-row items-center justify-between ${forcedResult === 'Wheezing' ? 'border-red-500 bg-red-50' : 'border-gray-100 bg-gray-50'
+                                        }`}
+                                    onPress={() => setForcedResult(forcedResult === 'Wheezing' ? null : 'Wheezing')}
+                                >
+                                    <View className="flex-row items-center">
+                                        <View className={`h-8 w-8 rounded-full items-center justify-center ${forcedResult === 'Wheezing' ? 'bg-red-500' : 'bg-gray-200'}`}>
+                                            <Ionicons name="warning" size={18} color="#fff" />
+                                        </View>
+                                        <Text className={`ml-3 font-bold ${forcedResult === 'Wheezing' ? 'text-red-700' : 'text-gray-500'}`}>Result: Wheezing</Text>
+                                    </View>
+                                    <Text className="text-[10px] font-bold text-red-600 bg-white px-2 py-1 rounded-full border border-red-100">CRITICAL</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <Text className="text-gray-400 text-[10px] text-center mt-4 italic font-medium">
+                                Selecting a preset will bypass real AI analysis for demonstration purposes.
+                            </Text>
+                        </View>
+                    </View>
+                )}
 
             </ScrollView>
 
             {/* Footer Button */}
             <View className="p-6 bg-white border-t border-gray-100 absolute bottom-0 left-0 right-0">
                 <TouchableOpacity
-                    className={`py-4 rounded-xl items-center ${(isNameTooLong || isAgeInvalid || isHistoryTooLong)
-                            ? 'bg-gray-300'
-                            : 'bg-red-600'
+                    style={styles.shadow}
+                    className={`py-4 rounded-xl items-center flex-row justify-center ${(isNameTooLong || isAgeInvalid || isHistoryTooLong)
+                        ? 'bg-gray-300'
+                        : 'bg-red-600'
                         }`}
                     onPress={handleSave}
                     disabled={isNameTooLong || isAgeInvalid || isHistoryTooLong}
                 >
-                    <Text className="text-white font-bold text-lg">
+                    <Text className="text-white font-bold text-lg mr-2">
                         {editMode ? 'Save Changes' : 'Proceed to Scan'}
                     </Text>
+                    {!editMode && <Ionicons name="arrow-forward" size={20} color="#fff" />}
                 </TouchableOpacity>
             </View>
         </View>
     );
 }
+
+const styles = {
+    shadow: {
+        shadowColor: '#EF4444',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+    }
+};

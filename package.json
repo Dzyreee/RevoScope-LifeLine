@@ -7,7 +7,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "backend": "cd backend && source venv/bin/activate && python api_server.py"
+    "backend": "cd backend && venv/bin/python api_server.py"
   },
   "dependencies": {
     "@expo/metro-runtime": "^6.1.2",
@@ -15,29 +15,39 @@
     "@react-native-masked-view/masked-view": "0.3.2",
     "@react-navigation/native": "^6.1.18",
     "@react-navigation/native-stack": "^6.0.0",
+    "base-64": "^1.0.0",
     "expo": "^54.0.0",
     "expo-av": "~16.0.8",
+    "expo-barcode-scanner": "^13.0.1",
+    "expo-camera": "~17.0.10",
+    "expo-constants": "~18.0.13",
+    "expo-crypto": "~15.0.8",
     "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.21",
     "expo-image-picker": "~17.0.10",
+    "expo-linear-gradient": "~15.0.8",
     "expo-print": "~15.0.8",
     "expo-sharing": "~14.0.8",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
     "nativewind": "^4.2.1",
+    "pako": "^2.1.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-qrcode-svg": "^6.3.21",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-sqlite-storage": "^6.0.1",
+    "react-native-svg": "15.12.1",
     "react-native-web": "^0.21.0",
     "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
     "@babel/core": "^7.28.6",
     "babel-preset-expo": "^54.0.10",
+    "concurrently": "^9.2.1",
     "tailwindcss": "^3.4.1"
   },
   "private": true

@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import * as Crypto from 'expo-crypto';
 
 let db;
 
@@ -24,6 +25,7 @@ export const initDB = async () => {
       heart_rate INTEGER,
       severity_score INTEGER DEFAULT 0,
       confidence_score INTEGER DEFAULT 0,
+      esi_level INTEGER DEFAULT 5,
       triage_advice TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
@@ -35,36 +37,113 @@ export const initDB = async () => {
       diagnosis TEXT,
       severity_score INTEGER,
       confidence_score INTEGER,
+      esi_level INTEGER,
       status TEXT, -- 'Critical', 'Monitoring', 'Normal'
       heart_rate INTEGER,
       timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      full_name TEXT,
+      hospital TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
+
+  // Migration: Add heart_rate column if it doesn't exist
+  try {
+    await database.execAsync(`ALTER TABLE patients ADD COLUMN heart_rate INTEGER;`);
+  } catch (e) {
+    // Ignore duplicate column error
+  }
+
+  // Migration: Add esi_level column if it doesn't exist (Fix for user error)
+  try {
+    await database.execAsync(`ALTER TABLE patients ADD COLUMN esi_level INTEGER DEFAULT 5;`);
+  } catch (e) {
+    // Ignore if already exists
+  }
+
+  try {
+    await database.execAsync(`ALTER TABLE scans ADD COLUMN esi_level INTEGER DEFAULT 5;`);
+  } catch (e) {
+    // Ignore if already exists
+  }
+};
+
+const hashPassword = async (password) => {
+  try {
+    const digest = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      password
+    );
+    return digest;
+  } catch (e) {
+    console.error("Hashing failed", e);
+    return null;
+  }
+};
+
+export const registerUser = async (email, password, fullName, hospital) => {
+  const database = await getDB();
+  const passwordHash = await hashPassword(password);
+
+  if (!passwordHash) throw new Error("Failed to process password");
+
+  try {
+    const result = await database.runAsync(
+      `INSERT INTO users (email, password_hash, full_name, hospital) VALUES (?, ?, ?, ?)`,
+      [email, passwordHash, fullName, hospital]
+    );
+    return result.lastInsertRowId;
+  } catch (error) {
+    if (error.message.includes('UNIQUE constraint failed')) {
+      throw new Error("Email already registered");
+    }
+    throw error;
+  }
+};
+
+export const loginUser = async (email, password) => {
+  const database = await getDB();
+  const passwordHash = await hashPassword(password);
+
+  if (!passwordHash) throw new Error("Failed to process password");
+
+  const user = await database.getFirstAsync(
+    `SELECT * FROM users WHERE email = ? AND password_hash = ?`,
+    [email, passwordHash]
+  );
+
+  return user;
 };
 
 export const addPatient = async (patient) => {
-  const { full_name, age, sex, history, profile_image, heart_rate, severity_score, confidence_score, triage_advice } = patient;
+  const { full_name, age, sex, history, profile_image, heart_rate, severity_score, confidence_score, esi_level, triage_advice } = patient;
   const database = await getDB();
   const result = await database.runAsync(
-    `INSERT INTO patients (full_name, age, sex, history, profile_image, heart_rate, severity_score, confidence_score, triage_advice) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-    [full_name, age, sex, history, profile_image, heart_rate || null, severity_score || 0, confidence_score || 0, triage_advice || '']
+    `INSERT INTO patients (full_name, age, sex, history, profile_image, heart_rate, severity_score, confidence_score, esi_level, triage_advice) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    [full_name, age, sex, history, profile_image, heart_rate || null, severity_score || 0, confidence_score || 0, esi_level || 5, triage_advice || '']
   );
   return result.lastInsertRowId;
 };
 
-export const addScan = async (patientId, audioUri, diagnosis, severityScore, confidenceScore, status, triageAdvice = '', heartRate = null) => {
+export const addScan = async (patientId, audioUri, diagnosis, severityScore, confidenceScore, esiLevel, status, triageAdvice = '', heartRate = null) => {
   const database = await getDB();
   // Insert scan
   await database.runAsync(
-    `INSERT INTO scans (patient_id, audio_uri, diagnosis, severity_score, confidence_score, status, heart_rate) VALUES (?, ?, ?, ?, ?, ?, ?);`,
-    [patientId, audioUri, diagnosis, severityScore, confidenceScore, status, heartRate]
+    `INSERT INTO scans (patient_id, audio_uri, diagnosis, severity_score, confidence_score, esi_level, status, heart_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+    [patientId, audioUri, diagnosis, severityScore, confidenceScore, esiLevel, status, heartRate]
   );
 
   // Update patient's latest scores, triage advice, and heart rate
   await database.runAsync(
-    `UPDATE patients SET severity_score = ?, confidence_score = ?, triage_advice = ?, heart_rate = ? WHERE id = ?;`,
-    [severityScore, confidenceScore, triageAdvice, heartRate, patientId]
+    `UPDATE patients SET severity_score = ?, confidence_score = ?, esi_level = ?, triage_advice = ?, heart_rate = ? WHERE id = ?;`,
+    [severityScore, confidenceScore, esiLevel, triageAdvice, heartRate, patientId]
   );
 };
 
@@ -125,6 +204,7 @@ export const resetDB = async () => {
   await database.execAsync(`
     DROP TABLE IF EXISTS scans;
     DROP TABLE IF EXISTS patients;
+    DROP TABLE IF EXISTS users;
   `);
   await initDB();
 };
