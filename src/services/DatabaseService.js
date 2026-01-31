@@ -73,6 +73,13 @@ export const initDB = async () => {
   } catch (e) {
     // Ignore if already exists
   }
+
+  // Migration: Add heart_rate column to scans table if it doesn't exist
+  try {
+    await database.execAsync(`ALTER TABLE scans ADD COLUMN heart_rate INTEGER;`);
+  } catch (e) {
+    // Ignore if already exists
+  }
 };
 
 const hashPassword = async (password) => {

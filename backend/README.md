@@ -8,18 +8,17 @@ cd backend
 pip install -r requirements.txt
 ```
 
-### 2. Train the Model (One-time setup)
+# RevoScope AI Backend
+
+## Quick Start
+
+### 1. Install Dependencies
 ```bash
-python train_model.py
+cd backend
+pip install -r requirements.txt
 ```
 
-This will automatically:
-- Download ICBHI 2017 dataset (~1.5GB)
-- Download pre-trained PANNs weights (~300MB)
-- Train the respiratory classifier (~30-60 min)
-- Save model to `weights/respiratory_classifier.pth`
-
-### 3. Start the API Server
+### 2. Start the API Server
 ```bash
 python api_server.py
 ```
@@ -51,17 +50,16 @@ Upload audio file for classification.
 ```
 
 ### GET /health
-Health check.
+Health check. Returns model loading status and device (MPS/CUDA/CPU).
 
 ## Model Architecture
 
-- **Input**: 128-mel spectrogram (5-second segments)
-- **Model**: 4-layer CNN with BatchNorm
+- **Model**: Audio Spectrogram Transformer (AST)
+- **Base**: `MIT/ast-finetuned-audioset-10-10-0.4593`
+- **Fine-tuning**: Custom classification head (Sequential)
+- **Input**: 510-length spectrogram sequences (normalized)
 - **Output**: 4 classes (Normal, Crackle, Wheeze, Both)
-- **Training Data**: ICBHI 2017 (~6900 respiratory cycles)
 
-## Expected Accuracy
-
-Based on ICBHI 2017 benchmark:
-- 4-class accuracy: ~80-85%
-- Normal vs Abnormal: ~90%+
+## Performance
+- Optimized for Apple Silicon (MPS)
+- Inference speed: ~0.1-0.3s per sample

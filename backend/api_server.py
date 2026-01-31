@@ -39,7 +39,7 @@ feature_extractor = None
 device = None
 
 def load_model():
-    """Load AST model."""
+    """Load AST model with custom classifier matching saved weights."""
     global model, feature_extractor, device
     
     # Device selection
@@ -52,34 +52,66 @@ def load_model():
     
     print(f"Loading AST model on {device}...")
 
-    # Initialize Feature Extractor (standard AST config)
+    # Initialize Feature Extractor (standard AST config but forced max_length)
     try:
-        feature_extractor = AutoFeatureExtractor.from_pretrained("MIT/ast-finetuned-audioset-10-10-0.4593")
+        # Force max_length=510 during init to match model
+        feature_extractor = AutoFeatureExtractor.from_pretrained(
+            "MIT/ast-finetuned-audioset-10-10-0.4593",
+            max_length=510
+        )
     except Exception as e:
         print(f"Warning: Could not load feature extractor from Hub: {e}")
-        # Fallback parameters if offline (approximated)
         feature_extractor = None 
 
     # Initialize Model Architecture
     try:
-        # We assume the .pth is a state dict for a standard AST classifier
+        # Use custom config matching saved weights (max_length=500 -> 602 position embeddings)
+        from transformers import ASTConfig
+        config = ASTConfig.from_pretrained("MIT/ast-finetuned-audioset-10-10-0.4593")
+        config.num_labels = 4
+        config.max_length = 510  # Matches saved weights position embeddings (602 patches)
+        
         model = ASTForAudioClassification.from_pretrained(
             "MIT/ast-finetuned-audioset-10-10-0.4593",
-            num_labels=4,
+            config=config,
             ignore_mismatched_sizes=True
         )
         
+        # Replace classifier with custom Sequential matching saved weights
+        # Saved weights structure: classifier.0 (LayerNorm), 2 (Linear 768->256), 5 (Linear 256->4)
+        import torch.nn as nn
+        model.classifier = nn.Sequential(
+            nn.LayerNorm(768),      # classifier.0
+            nn.GELU(),              # classifier.1 (activation, no weights)
+            nn.Linear(768, 256),    # classifier.2
+            nn.Dropout(0.1),        # classifier.3 (no weights)
+            nn.GELU(),              # classifier.4 (activation, no weights)
+            nn.Linear(256, 4)       # classifier.5
+        )
+        print("Custom classifier head installed (768→256→4)")
+        
         # Load weights
         if MODEL_PATH.exists():
-            # Check if it's an LFS pointer (small size)
             if MODEL_PATH.stat().st_size < 10000:
-                print(f"WARNING: Model file is too small ({MODEL_PATH.stat().st_size} bytes). It might be a Git LFS pointer.")
+                print(f"WARNING: Model file is too small ({MODEL_PATH.stat().st_size} bytes). Git LFS pointer?")
                 print("Please run 'git lfs pull' to download the real model.")
             else:
-                state_dict = torch.load(MODEL_PATH, map_location=device)
-                # Handle keys if necessary (e.g. if saved from varying implementations)
-                msg = model.load_state_dict(state_dict, strict=False)
-                print(f"Weights loaded. Missing keys: {len(msg.missing_keys)}")
+                checkpoint = torch.load(MODEL_PATH, map_location=device)
+                if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+                    state_dict = checkpoint['model_state_dict']
+                    print(f"Loaded checkpoint (epoch {checkpoint.get('epoch', '?')}, val_acc: {checkpoint.get('val_acc', 0):.2%})")
+                else:
+                    state_dict = checkpoint
+                
+                # Remap keys: 'ast.' -> 'audio_spectrogram_transformer.'
+                remapped_state_dict = {}
+                for key, value in state_dict.items():
+                    new_key = key.replace('ast.', 'audio_spectrogram_transformer.')
+                    remapped_state_dict[new_key] = value
+                print(f"Remapped {len(remapped_state_dict)} keys (ast. → audio_spectrogram_transformer.)")
+                    
+                msg = model.load_state_dict(remapped_state_dict, strict=False)
+                print(f"Weights loaded. Missing: {len(msg.missing_keys)}, Unexpected: {len(msg.unexpected_keys)}")
         else:
             print(f"WARNING: Model file not found at {MODEL_PATH}")
 
@@ -89,7 +121,10 @@ def load_model():
         
     except Exception as e:
         print(f"Error loading AST model: {e}")
+        import traceback
+        traceback.print_exc()
         model = None
+
 
 # FastAPI Lifecycle
 @asynccontextmanager
@@ -135,11 +170,23 @@ async def analyze_audio(audio: UploadFile = File(...)):
         # Load and Preprocess Audio
         y, sr = librosa.load(tmp_path, sr=TARGET_SAMPLE_RATE, mono=True)
         
+        # Normalize audio (standardize to zero mean, unit variance) - Critical for AST
+        if len(y) > 0:
+            y = (y - np.mean(y)) / (np.std(y) + 1e-6)
+        
         # Pad or truncate to ~5-10s as needed by AST (standard is 10.24s usually, but we try 5s)
         # We rely on the feature extractor to handle padding/truncation map
         
         if feature_extractor:
-            inputs = feature_extractor(y, sampling_rate=TARGET_SAMPLE_RATE, return_tensors="pt")
+            # Force max_length=510 to match usage of saved weights (602 patches)
+            inputs = feature_extractor(
+                y, 
+                sampling_rate=TARGET_SAMPLE_RATE, 
+                return_tensors="pt",
+                max_length=510,
+                truncation=True,
+                padding="max_length"
+            )
             input_values = inputs.input_values.to(device)
         else:
             raise HTTPException(500, "Feature extractor not initialized")

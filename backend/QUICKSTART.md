@@ -10,15 +10,12 @@ Follow these steps to run the complete system with the newly trained **AST AI Mo
 
 ### Step 1: Start the AI Backend (Terminal 1)
 Open a terminal in the `backend/` directory:
-```powershell
+```bash
 # 1. Activate the environment (from backend folder)
-..\.venv\Scripts\activate
-
-# Or if you are in the root folder:
-# .\.venv\Scripts\activate
+source venv/bin/activate
 
 # 2. Run the AST-optimized server
-python api_server_ast.py
+python api_server.py
 ```
 *Wait until you see: **"✓ AST model loaded (77.0% accuracy)"***
 
@@ -52,5 +49,4 @@ git lfs pull
 
 ---
 ### 📁 Important Files
-- **Results:** [walkthrough.md](file:///C:/Users/User/.gemini/antigravity/brain/ca2df098-f262-4d47-899c-863aa79cc610/walkthrough.md)
 - **Weights:** `backend/weights/respiratory_ast_best.pth` (Stored via LFS)

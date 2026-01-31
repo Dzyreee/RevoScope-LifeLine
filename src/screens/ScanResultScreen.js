@@ -51,7 +51,7 @@ const classifyRespiratorySound = (audioFeatures) => {
 
 export default function ScanResultScreen({ route, navigation }) {
     const { recordScan, refreshDashboard } = useApp();
-    const { patientId, mode, audioUri, audioDuration, includeHeartRate, scanData } = route.params;
+    const { patientId, mode, audioUri, audioDuration, includeHeartRate, scanData, forcedResult } = route.params;
     const [phase, setPhase] = useState(mode === 'scan' ? 'recording' : mode === 'view' ? 'result' : 'analyzing');
     const [recordProgress, setRecordProgress] = useState(0);
     const [audioLevel, setAudioLevel] = useState(0);

@@ -97,8 +97,8 @@ export default function App() {
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
-        <AppProvider>
-          <NavigationContainer>
+        <NavigationContainer>
+          <AppProvider>
             <StatusBar style="dark" />
             <Stack.Navigator
               initialRouteName={initialRoute}
@@ -116,8 +116,8 @@ export default function App() {
               <Stack.Screen name="Detail" component={PatientDetailScreen} />
               <Stack.Screen name="Help" component={HelpScreen} />
             </Stack.Navigator>
-          </NavigationContainer>
-        </AppProvider>
+          </AppProvider>
+        </NavigationContainer>
       </SafeAreaProvider>
     </ErrorBoundary>
   );
