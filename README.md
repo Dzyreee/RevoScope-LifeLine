@@ -10,7 +10,7 @@ RevoScope is a force-multiplier for frontline clinics in high-casualty crisis ev
 In disasters (earthquakes, floods, conflict), doctors are overwhelmed. Critical time is lost while patients wait for an initial screening. RevoScope bridges this gap by empowering volunteers with expert-level diagnostic tools.
 
 ## 💡 The Solution: AI-Powered Triage
-RevoScope combines a low-cost hardware acoustic sensor with a sophisticated AI backend to classify respiratory pathologies and measure vitals in under 30 seconds.
+RevoScope combines a low-cost hardware acoustic sensor with a sophisticated AI backend to classify respiratory pathologies and measure vitals in under 15 seconds.
 
 ---
 
@@ -21,55 +21,58 @@ RevoScope combines a low-cost hardware acoustic sensor with a sophisticated AI b
 graph TD
     A[RevoScope Hardware] -->|Analog Audio| B[Mobile App - Expo/React Native]
     B -->|WAV Upload| C[Backend API - FastAPI]
-    C -->|EfficientNet-B2 + LSTM| D[AI Inference Engine]
-    C -->|Signal Processing| E[Vitals Extraction]
+    C -->|Spectrogram Conversion| D[AI Model - AST Transformer]
     D -->|Classification| B
-    E -->|BPM| B
+    B <-->|RevoMesh P2P| E[Nearby Triage Units]
     B -->|Local Storage| F[SQLite Database]
 ```
 
 ### Technology Stack
 - **Frontend**: React Native (Expo), NativeWind (Tailwind CSS), React Navigation, Expo-AV, Expo-SQLite.
-- **Backend**: Python 3.9+, FastAPI, PyTorch (TorchVision), Librosa (Audio Processing), NumPy, Pandas.
-- **AI Model**: Optimized EfficientNet-B2 backbone combined with an LSTM layer and Attention mechanism for temporal audio feature analysis.
+- **Backend**: Python 3.9+, FastAPI, PyTorch, Librosa (Audio Processing).
+- **AI Model**: **Audio Spectrogram Transformer (AST)** (`MIT/ast-finetuned-audioset-10-10-0.4593`) fine-tuned for respiratory sound classification.
 
 ---
 
 ## ✨ Key Capabilities
 
-### 1. 🧠 AI Lung Pathology Detection
-The system uses a Convolutional Neural Network (CNN) to detect:
-- **Pneumonia & Infection**: Fine/Coarse Crackles.
+### 1. 🧠 Advanced AI Diagnostics (AST)
+Unlike traditional CNNs, RevoScope uses a Transformer-based architecture (AST) to analyze temporal audio patterns. It detects:
+- **Pneumonia & Infection**: Crackles (Fine/Coarse).
 - **Asthma & Airway Distress**: Wheezing.
-- **Trauma-Induced Lung Collapse**: Absence of breath sounds.
-- **Bronchitis**: Rhonchi.
+- **Normal Vitals**: Healthy vesicular breath sounds.
+- **Complex Pathologies**: Mixed features (Crackles + Wheezes).
 
-### 2. 💓 Integrated Heart Rate (BPM)
-Digital signal processing extracts BPM from the acoustic recording:
-- **Bandpass Filtering**: Isolates the 20Hz–150Hz heart sound range.
-- **Peak Detection**: Calculates real-time BPM to detect shock (Tachycardia/Bradycardia).
+### 2. � RevoMesh: Offline Peer Sync (Simulated)
+Designed for grid-down scenarios, RevoScope includes a "RevoMesh" simulation. This feature demonstrates how devices can automatically sync patient data with nearby peer units via Bluetooth Low Energy (BLE) without needing internet access, ensuring continuity of care across field hospitals.
 
-### 3. 🚦 Automated Triage Ranking (ESI-Based)
-The app provides immediate, color-coded priority based on the Emergency Severity Index:
-- 🔴 **RED (Critical)**: Life-threatening sounds or extreme heart rate.
-- 🟡 **YELLOW (Observation)**: Issues detected (e.g., wheezing). Queue for review.
-- 🟢 **GREEN (Stable)**: Normal vitals.
+### 3. 🧪 Developer & Demo Mode
+Includes a robust set of demonstration tools for judges and testing:
+- **Random Patient Generator**: Instantly populate intake forms with realistic diverse personas.
+- **Forced Result Injection**: Manually trigger specific diagnoses (Normal/Crackles/Wheezing) to verify UI responses and Triage logic without needing a physical patient.
+- **Heart Rate Simulation**: Simulates heart rate detection from breath sounds (PCG).
+
+### 4. 🚦 Automated Triage Ranking (ESI-Based)
+The app provides immediate, color-coded priority based on the **Emergency Severity Index (ESI)**:
+- 🔴 **ESI 1-2 (Critical/Urgent)**: Severe distress, airway compromise (Wheezing/Crackles + Low Confidence).
+- 🟡 **ESI 3 (Moderate)**: Abnormal sounds necessitating treatment (Crackles/Wheezing).
+- 🟢 **ESI 4-5 (Stable)**: Normal findings or mild issues.
 
 ---
 
 ## 📁 Repository Structure
 ```text
 .
-├── backend/                # FastAPI Server
-│   ├── api_server.py       # Main API entry point
-│   ├── requirements.txt    # Python dependencies
-│   └── weights/            # Trained model weights
+├── backend/                # FastAPI Server & AI Model
+│   ├── api_server.py       # Main API entry point (AST Model)
+│   ├── weights/            # Model weights storage
+│   └── requirements.txt    # Python dependencies
 ├── src/                    # Mobile App Source
-│   ├── components/         # UI Components
-│   ├── screens/            # App Screens (Triage, Patient List, etc.)
-│   ├── services/           # ApiService & DatabaseService
-│   ├── context/            # Global state management
-│   └── assets/             # Static assets
+│   ├── components/         # UI Components (Cards, Charts)
+│   ├── screens/            # App Screens (Dashboard, Intake, Scan)
+│   ├── services/           # ApiService, DatabaseService
+│   ├── context/            # Global App State
+│   └── assets/             # Images & Icons
 ├── App.js                  # App entry point
 └── package.json            # NPM dependencies
 ```
@@ -81,7 +84,7 @@ The app provides immediate, color-coded priority based on the Emergency Severity
 ### Prerequisites
 - **Node.js**: v18+ (for the frontend)
 - **Python**: v3.10+ (for the backend)
-- **Git LFS**: Required for downloading the AI model weights.
+- **Git LFS**: Required for downloading the large AI model weights.
 - **Expo Go**: Install on your iOS/Android device to test hardware scanning.
 
 ### 📥 First Time Setup (Cloning)
@@ -104,13 +107,13 @@ cd backend
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install dependencies
+# Install dependencies (Torch, Transformers, FastAPI)
 pip install -r requirements.txt
 
 # Run the AST-optimized server
 python api_server.py
 ```
-*Wait until you see: **"✓ AST model loaded"***. The API will be available at `http://localhost:8000`.
+*Wait until you see: **"✓ AST Model loaded successfully"***. The API will be available at `http://localhost:8000`.
 
 ### 📱 Step 2: Start the Frontend
 Open a **new** terminal in the root project folder:
@@ -119,10 +122,10 @@ Open a **new** terminal in the root project folder:
 npm install
 
 # Start the Expo app
-npx expo start
+npm run web  # For web preview
+# OR
+npx expo start # For mobile (Scan QR with Expo Go)
 ```
-- Press **'s'** to switch to Expo Go mode if needed.
-- Scan the QR code with your phone (using Expo Go) or run on an emulator.
 
 ---
 
@@ -134,33 +137,21 @@ The RevoScope is an original, low-cost ($<10 USD) acoustic sensor:
 ---
 
 ## 🗺️ Roadmap
-- [ ] **Native Mobile Integration**: Direct smartphone sensor access.
-- [ ] **Offline Inference**: Porting the AI model to ONNX/TensorFlow Lite for on-device analysis.
-- [ ] **Geospatial Mapping**: Visualizing disease "hot spots" for aid organizations.
-- [ ] **Multi-Language Support**: Localizing the interface for diverse global responders.
+- [ ] **Real-time RevoMesh**: Implementation of the actual Bluetooth Mesh protocol (currently simulated).
+- [ ] **Edge Inference**: Porting the AST model to ONNX Runtime for fully offline on-device inference.
+- [ ] **Geospatial Hotspots**: Mapping disease clusters for aid worker logistics.
 
----
 ---
 
 ## 📡 API Endpoints
 
 ### POST `/analyze`
-Uploads an audio file for classification.
-- **Response**: JSON containing class prediction, confidence scores, severity score, and ESI recommendation.
+Uploads an audio file (`.wav`) for classification.
+- **Response**: JSON containing diagnosis, confidence, severity score, and ESI triage recommendation.
 
 ### GET `/health`
-Health check endpoint. Returns model loading status, accuracy, and current device (MPS/CUDA/CPU).
+Health check endpoint. Returns model status and compute device (MPS/CUDA/CPU).
 
 ---
 
-## 🧠 Model Architecture
-- **Model**: Audio Spectrogram Transformer (AST)
-- **Base**: `MIT/ast-finetuned-audioset-10-10-0.4593`
-- **Fine-tuning**: Custom classification head (Linear Layer)
-- **Input**: Normalized 510-length spectrogram sequences
-- **Output**: 4 classes (Normal, Crackle, Wheeze, Both)
-- **Performance**: Optimized for Apple Silicon (MPS) with ~0.1-0.3s inference latency.
-
----
 © 2026 RevoScope Team | LifeLines Hackathon
-
