@@ -51,7 +51,7 @@ const classifyRespiratorySound = (audioFeatures) => {
 
 export default function ScanResultScreen({ route, navigation }) {
     const { recordScan, refreshDashboard } = useApp();
-    const { patientId, mode, audioUri, audioDuration, includeHeartRate, scanData } = route.params;
+    const { patientId, mode, audioUri, audioDuration, includeHeartRate, scanData, forcedResult } = route.params;
     const [phase, setPhase] = useState(mode === 'scan' ? 'recording' : mode === 'view' ? 'result' : 'analyzing');
     const [recordProgress, setRecordProgress] = useState(0);
     const [audioLevel, setAudioLevel] = useState(0);
@@ -614,23 +614,45 @@ export default function ScanResultScreen({ route, navigation }) {
                     )}
                 </View>
 
-                {/* Quality Check & ESI Summary */}
+                {/* Quality Check & Low Confidence Warning */}
                 <View className="mb-4">
-                    {result.confidence_score < 50 ? (
+                    {result.confidence_score < 80 ? (
                         <View className="bg-red-50 p-6 rounded-3xl border-2 border-red-200 items-center">
                             <View className="h-16 w-16 bg-red-100 rounded-full items-center justify-center mb-3">
                                 <Ionicons name="alert-circle" size={40} color="#DC2626" />
                             </View>
-                            <Text className="text-red-800 font-black text-xl text-center">Inconclusive Result</Text>
-                            <Text className="text-red-600 text-center text-sm mt-2 mb-6">
-                                The AI confidence ({result.confidence_score}%) is below the required threshold for a reliable diagnosis. Please ensure correct stethoscope placement and retake the scan.
+                            <Text className="text-red-900 font-black text-xl text-center">Low Confidence Result ({result.confidence_score}%)</Text>
+                            <Text className="text-red-700 text-center text-sm mt-2 mb-6 leading-5">
+                                The AI is less than 80% sure about this analysis. This usually happens due to background noise or poor stethoscope contact.
                             </Text>
+
+                            {/* Retake Button */}
                             <TouchableOpacity
-                                className="bg-red-600 w-full py-4 rounded-2xl flex-row items-center justify-center shadow-md bg-red-600"
+                                className="bg-red-600 w-full py-4 rounded-2xl flex-row items-center justify-center shadow-md mb-3"
                                 onPress={() => navigation.navigate('Dashboard')}
                             >
                                 <Ionicons name="refresh" size={24} color="#fff" />
-                                <Text className="text-white font-bold text-lg ml-2">Retake Scan Now</Text>
+                                <Text className="text-white font-bold text-lg ml-2">Retake Scan</Text>
+                            </TouchableOpacity>
+
+                            {/* View Anyway Button */}
+                            <TouchableOpacity
+                                className="py-2"
+                                onPress={() => {
+                                    // Just update the UI to "hide" this warning basically? 
+                                    // Actually simpler to just have a dismissable warning or skip logic.
+                                    // But since we are rendering this conditionally, let's just use state to hide it if we want 'View Anyway'
+                                    // For now, let's just show the standard result BELOW this warning if they scroll, 
+                                    // or just allow them to see the diagnosis below.
+
+                                    // Actually, standard pattern: 
+                                    // If we render this, we hide the "Triage Status" summary. 
+                                    // If they want to view anyway, we can just replace this block with the summary.
+                                    // But simpler: Just show the result diagnosis below (which is already there).
+                                    // So this block effectively just WARNS them.
+                                }}
+                            >
+                                <Text className="text-red-500 font-bold">Scroll down to view result anyway</Text>
                             </TouchableOpacity>
                         </View>
                     ) : (
