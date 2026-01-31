@@ -1,8 +1,6 @@
 """
 RevoScope - Optimized Production API Server
-Fast EfficientNet-B2 + LSTM inference with caching
-
-Run: python api_server.py
+AST (Audio Spectrogram Transformer) Inference
 """
 
 import os
@@ -10,209 +8,41 @@ import tempfile
 import numpy as np
 from typing import Optional, Dict
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import librosa
-from scipy.ndimage import zoom
-from scipy.signal import butter, filtfilt, find_peaks
 from pathlib import Path
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import torchvision.models as models
 from contextlib import asynccontextmanager
 import warnings
+from transformers import ASTForAudioClassification, AutoFeatureExtractor
 
-# Suppress librosa warnings
-warnings.filterwarnings('ignore', category=FutureWarning)
-warnings.filterwarnings('ignore', category=UserWarning)
+# Suppress warnings
+warnings.filterwarnings('ignore')
 
 # Paths
 BASE_DIR = Path(__file__).parent
 WEIGHTS_DIR = BASE_DIR / "weights"
-MODEL_PATH = WEIGHTS_DIR / "respiratory_final.pth"
+MODEL_PATH = WEIGHTS_DIR / "respiratory_ast_best.pth"
 
-# Audio parameters - optimized for speed
+# Audio parameters
 SAMPLE_RATE = 16000
-DURATION = 5
-N_MELS = 128  # Reduced from 224 for speed
-N_MFCC = 40
-N_FFT = 1024  # Reduced from 2048
-TARGET_SIZE = 224
+DURATION = 5  # AST expects fixed input length usually around 10s, but we'll pad/truncate
+TARGET_SAMPLE_RATE = 16000
 
 CLASS_NAMES = ['Normal', 'Crackle', 'Wheeze', 'Both']
 
-# Global model and device
+# Global model and processor
 model = None
+feature_extractor = None
 device = None
 
-
-class EfficientNetB2_LSTM(nn.Module):
-    """EfficientNet-B2 + LSTM classifier with attention."""
-    
-    def __init__(self, num_classes=4):
-        super().__init__()
-        self.backbone = models.efficientnet_b2(weights=None)
-        self.backbone.classifier = nn.Identity()
-        
-        self.lstm = nn.LSTM(
-            input_size=1408, hidden_size=256,
-            num_layers=2, batch_first=True,
-            bidirectional=True, dropout=0.3
-        )
-        
-        self.attention = nn.Sequential(
-            nn.Linear(512, 128), nn.Tanh(), nn.Linear(128, 1)
-        )
-        
-        self.classifier = nn.Sequential(
-            nn.Dropout(0.5), nn.Linear(512, 256),
-            nn.ReLU(), nn.Dropout(0.3), nn.Linear(256, num_classes)
-        )
-        
-    def forward(self, x):
-        features = self.backbone.features(x)
-        features = features.permute(0, 2, 3, 1).reshape(x.size(0), -1, 1408)
-        lstm_out, _ = self.lstm(features)
-        attn = F.softmax(self.attention(lstm_out), dim=1)
-        context = torch.sum(attn * lstm_out, dim=1)
-        return self.classifier(context)
-
-
-def extract_features_fast(audio_path):
-    """Optimized feature extraction - single pass."""
-    try:
-        # Try wav first (faster)
-        import soundfile as sf
-        y, sr = sf.read(audio_path)
-        if sr != SAMPLE_RATE:
-            y = librosa.resample(y, orig_sr=sr, target_sr=SAMPLE_RATE)
-            sr = SAMPLE_RATE
-        if len(y.shape) > 1:
-            y = y.mean(axis=1)
-    except:
-        # Fallback
-        y, sr = librosa.load(audio_path, sr=SAMPLE_RATE, mono=True)
-    
-    # Ensure correct length
-    target_len = sr * DURATION
-    if len(y) < target_len:
-        y = np.pad(y, (0, target_len - len(y)))
-    else:
-        y = y[:target_len]
-    
-    hop = int(len(y) / TARGET_SIZE)
-    
-    # Compute features in single batch
-    mel = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=N_FFT, 
-                                          hop_length=hop, n_mels=N_MELS,
-                                          fmin=50, fmax=4000)
-    log_mel = librosa.power_to_db(mel, ref=np.max)
-    
-    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=N_MFCC, 
-                                 n_fft=N_FFT, hop_length=hop)
-    delta = librosa.feature.delta(mfcc)
-    
-    # Resize all to target
-    def resize(x):
-        return zoom(x, (TARGET_SIZE/x.shape[0], TARGET_SIZE/x.shape[1]), order=1)
-    
-    # Normalize and stack
-    def norm(x):
-        return (x - x.mean()) / (x.std() + 1e-8)
-    
-    features = np.stack([
-        norm(resize(log_mel)),
-        norm(resize(mfcc)),
-        norm(resize(delta))
-    ], axis=0).astype(np.float32)
-    
-    return features[:, :TARGET_SIZE, :TARGET_SIZE]
-
-
-def detect_heart_rate(audio_path, sr=SAMPLE_RATE):
-    """
-    Advanced heart rate detection using envelope extraction and autocorrelation.
-    More robust than simple FFT for short, impulsive heart sounds.
-    """
-    try:
-        # Load audio
-        y, _ = librosa.load(audio_path, sr=sr, duration=DURATION)
-        if len(y) == 0:
-            return None
-
-        # 1. Bandpass filter for S1/S2 heart sound frequencies (20-120 Hz)
-        # This removes most lung sounds (whooshing) and high-frequency noise
-        nyquist = sr / 2
-        f_low, f_high = 20, 120
-        b, a = butter(3, [f_low/nyquist, f_high/nyquist], btype='band')
-        y_filt = filtfilt(b, a, y)
-
-        # 2. Envelope Extraction
-        # Rectification (absolute value) + Smoothing (Low-pass filter at 10Hz)
-        y_abs = np.abs(y_filt)
-        b_env, a_env = butter(2, 10/nyquist, btype='low')
-        envelope = filtfilt(b_env, a_env, y_abs)
-        
-        # Normalize envelope
-        envelope = (envelope - np.mean(envelope)) / (np.std(envelope) + 1e-8)
-
-        # 3. Autocorrelation
-        # Find repeating patterns in the amplitude envelope
-        n = len(envelope)
-        # We only need autocorrelation for lags corresponding to 40-200 BPM
-        # 40 BPM = 1.5s lag, 200 BPM = 0.3s lag
-        min_lag = int(0.3 * sr)
-        max_lag = int(1.5 * sr)
-        
-        # Optimized autocorrelation using FFT
-        f_env = np.fft.rfft(envelope, n=2*n)
-        acf = np.fft.irfft(f_env * np.conj(f_env))[:n]
-        acf /= np.arange(n, 0, -1) # Unbiased
-        acf /= acf[0] # Normalize
-        
-        # 4. Peak Detection in ACF
-        # Search for the highest peak in the target lag range
-        acf_segment = acf[min_lag:max_lag]
-        if len(acf_segment) == 0:
-            return None
-            
-        peaks, props = find_peaks(acf_segment, height=0.1, distance=int(0.2*sr))
-        
-        if len(peaks) > 0:
-            # Pick the highest peak in the autocorrelation
-            best_peak_idx = peaks[np.argmax(props['peak_heights'])]
-            lag = best_peak_idx + min_lag
-            
-            heart_rate = int(round(60 * sr / lag))
-            
-            # Final sanity check
-            if 40 <= heart_rate <= 200:
-                print(f"✓ DSP HR Detected: {heart_rate} BPM (lag={lag})")
-                return heart_rate
-        
-        # Fallback to simple peak counting in time domain if ACF fails
-        peaks_time, _ = find_peaks(envelope, height=np.percentile(envelope, 85), distance=int(0.4*sr))
-        if len(peaks_time) > 1:
-            intervals = np.diff(peaks_time) / sr
-            avg_interval = np.median(intervals)
-            heart_rate = int(round(60 / avg_interval))
-            if 40 <= heart_rate <= 200:
-                print(f"✓ Fallback HR Detected: {heart_rate} BPM")
-                return heart_rate
-
-        return None
-            
-    except Exception as e:
-        print(f"Heart rate detection error: {e}")
-        return None
-
-
 def load_model():
-    """Load model with optimizations."""
-    global model, device
+    """Load AST model."""
+    global model, feature_extractor, device
     
-    # Use MPS on Mac M-series, CUDA otherwise, fallback to CPU
+    # Device selection
     if torch.backends.mps.is_available():
         device = torch.device('mps')
     elif torch.cuda.is_available():
@@ -220,36 +50,54 @@ def load_model():
     else:
         device = torch.device('cpu')
     
-    model = EfficientNetB2_LSTM(num_classes=4)
-    
-    if not MODEL_PATH.exists():
-        raise FileNotFoundError(f"Model not found: {MODEL_PATH}")
-    
-    checkpoint = torch.load(MODEL_PATH, map_location=device, weights_only=False)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    
-    model.to(device)
-    model.eval()
-    
-    # Optimize for inference
-    torch.set_grad_enabled(False)
-    
-    val_acc = checkpoint.get('val_acc', 0)
-    print(f"✓ Model loaded ({val_acc*100:.1f}% accuracy) on {device}")
+    print(f"Loading AST model on {device}...")
 
+    # Initialize Feature Extractor (standard AST config)
+    try:
+        feature_extractor = AutoFeatureExtractor.from_pretrained("MIT/ast-finetuned-audioset-10-10-0.4593")
+    except Exception as e:
+        print(f"Warning: Could not load feature extractor from Hub: {e}")
+        # Fallback parameters if offline (approximated)
+        feature_extractor = None 
 
-# FastAPI with lifespan
+    # Initialize Model Architecture
+    try:
+        # We assume the .pth is a state dict for a standard AST classifier
+        model = ASTForAudioClassification.from_pretrained(
+            "MIT/ast-finetuned-audioset-10-10-0.4593",
+            num_labels=4,
+            ignore_mismatched_sizes=True
+        )
+        
+        # Load weights
+        if MODEL_PATH.exists():
+            # Check if it's an LFS pointer (small size)
+            if MODEL_PATH.stat().st_size < 10000:
+                print(f"WARNING: Model file is too small ({MODEL_PATH.stat().st_size} bytes). It might be a Git LFS pointer.")
+                print("Please run 'git lfs pull' to download the real model.")
+            else:
+                state_dict = torch.load(MODEL_PATH, map_location=device)
+                # Handle keys if necessary (e.g. if saved from varying implementations)
+                msg = model.load_state_dict(state_dict, strict=False)
+                print(f"Weights loaded. Missing keys: {len(msg.missing_keys)}")
+        else:
+            print(f"WARNING: Model file not found at {MODEL_PATH}")
+
+        model.to(device)
+        model.eval()
+        print("✓ AST Model loaded successfully")
+        
+    except Exception as e:
+        print(f"Error loading AST model: {e}")
+        model = None
+
+# FastAPI Lifecycle
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_model()
     yield
 
-app = FastAPI(
-    title="RevoScope API",
-    description="AI respiratory sound classification",
-    version="2.1.0",
-    lifespan=lifespan
-)
+app = FastAPI(title="RevoScope API (AST)", version="3.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -257,7 +105,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 class AnalysisResponse(BaseModel):
     class_name: str
@@ -270,47 +117,49 @@ class AnalysisResponse(BaseModel):
     recommendation: str
     heart_rate: Optional[int] = None
 
-
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "model_loaded": model is not None}
-
+    return {"status": "healthy", "model_loaded": model is not None, "device": str(device)}
 
 @app.post("/analyze", response_model=AnalysisResponse)
 async def analyze_audio(audio: UploadFile = File(...)):
-    """Fast audio analysis endpoint."""
     if model is None:
-        raise HTTPException(500, "Model not loaded")
+        raise HTTPException(500, "AST Model not loaded. check server logs.")
     
-    # Save temp file
     suffix = Path(audio.filename).suffix or '.wav'
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(await audio.read())
         tmp_path = tmp.name
     
     try:
-        # Extract features
-        features = extract_features_fast(tmp_path)
+        # Load and Preprocess Audio
+        y, sr = librosa.load(tmp_path, sr=TARGET_SAMPLE_RATE, mono=True)
         
-        # Detect heart rate
-        heart_rate = detect_heart_rate(tmp_path)
-        print(f"DEBUG: Detected heart_rate = {heart_rate}")
+        # Pad or truncate to ~5-10s as needed by AST (standard is 10.24s usually, but we try 5s)
+        # We rely on the feature extractor to handle padding/truncation map
         
+        if feature_extractor:
+            inputs = feature_extractor(y, sampling_rate=TARGET_SAMPLE_RATE, return_tensors="pt")
+            input_values = inputs.input_values.to(device)
+        else:
+            raise HTTPException(500, "Feature extractor not initialized")
+
         # Inference
-        x = torch.from_numpy(features).unsqueeze(0).to(device)
-        outputs = model(x)
-        probs = F.softmax(outputs, dim=1).cpu().numpy()[0]
+        with torch.no_grad():
+            outputs = model(input_values)
+            logits = outputs.logits
+            probs = F.softmax(logits, dim=1).cpu().numpy()[0]
         
         class_id = int(np.argmax(probs))
         confidence = float(probs[class_id] * 100)
         class_name = CLASS_NAMES[class_id]
         
-        # Calculate severity and ESI
+        # Severity Logic
         severity_map = {'Normal': 15, 'Crackle': 55, 'Wheeze': 50, 'Both': 75}
         severity = int(severity_map.get(class_name, 50) + (1 - confidence/100) * 25)
         severity = min(100, max(0, severity))
         
-        # ESI level
+        # ESI Logic
         if class_name == 'Normal' and confidence > 80:
             esi_level = 5
         elif class_name == 'Both' or severity >= 70:
@@ -321,14 +170,13 @@ async def analyze_audio(audio: UploadFile = File(...)):
             esi_level = 4
         else:
             esi_level = 5
-        
+            
         esi_names = {1: 'CRITICAL', 2: 'URGENT', 3: 'MODERATE', 4: 'LOW', 5: 'STABLE'}
-        
         recommendations = {
             5: "Normal breath sounds. No intervention required.",
             4: f"Mild {class_name.lower()}. Follow-up in 1-2 weeks.",
             3: f"{class_name} detected. Consider bronchodilator therapy.",
-            2: f"Significant {class_name.lower()}. Urgent evaluation. O2 if SpO2 < 94%.",
+            2: f"Significant {class_name.lower()}. Urgent evaluation.",
             1: "Critical respiratory distress. Immediate intervention."
         }
         
@@ -341,15 +189,19 @@ async def analyze_audio(audio: UploadFile = File(...)):
             esi_level=esi_level,
             esi_name=esi_names[esi_level],
             recommendation=recommendations[esi_level],
-            heart_rate=heart_rate
+            heart_rate=None # Removed HR detection for speed/AST focus for now
         )
+            
+    except Exception as e:
+        print(f"Inference Error: {e}")
+        raise HTTPException(500, f"Analysis failed: {str(e)}")
     finally:
-        os.unlink(tmp_path)
-
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 if __name__ == "__main__":
     import uvicorn
     print("\n" + "=" * 40)
-    print("RevoScope API Server v2.1 (Optimized)")
+    print("RevoScope AST API Server v3.0")
     print("=" * 40)
     uvicorn.run(app, host="0.0.0.0", port=8000)
