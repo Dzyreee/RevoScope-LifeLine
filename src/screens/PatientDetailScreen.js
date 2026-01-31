@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, Alert, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
@@ -9,9 +10,11 @@ export default function PatientDetailScreen({ route, navigation }) {
     const [history, setHistory] = useState(null);
     const [showPhotoModal, setShowPhotoModal] = useState(false);
 
-    useEffect(() => {
-        loadData();
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            loadData();
+        }, [patientId])
+    );
 
     const loadData = async () => {
         const data = await getHistory(patientId);

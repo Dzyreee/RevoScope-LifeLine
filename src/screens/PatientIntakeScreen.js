@@ -96,7 +96,7 @@ export default function PatientIntakeScreen({ route, navigation }) {
             return;
         }
         if (!sex) {
-            Alert.alert('Missing Info', 'Please select sex.');
+            Alert.alert('Missing Info', 'Please select gender.');
             return;
         }
         if (isHistoryTooLong) {
@@ -111,7 +111,8 @@ export default function PatientIntakeScreen({ route, navigation }) {
                 sex,
                 history: history.trim(),
                 profile_image: photo,
-                include_heart_rate: includeHeartRate // Save preference
+                include_heart_rate: includeHeartRate, // Save preference
+                heart_rate: existingData?.heart_rate ?? null // Preserve heart rate if editing
             };
 
             if (editMode && existingData?.id) {
@@ -224,7 +225,7 @@ export default function PatientIntakeScreen({ route, navigation }) {
                         )}
                     </View>
                     <View className="flex-1">
-                        <Text className="text-sm font-bold text-gray-600 mb-2">SEX</Text>
+                        <Text className="text-sm font-bold text-gray-600 mb-2">GENDER</Text>
                         <View className="flex-row bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
                             <TouchableOpacity
                                 className={`flex-1 py-4 items-center ${sex === 'Male' ? 'bg-red-600' : 'bg-transparent'}`}
