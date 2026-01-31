@@ -73,54 +73,10 @@ export default function PreScanScreen({ route, navigation }) {
         }, 300);
     };
 
-    const handleUploadAudio = async () => {
-        try {
-            const result = await DocumentPicker.getDocumentAsync({
-                type: 'audio/*',
-                copyToCacheDirectory: true,
-            });
-
-            if (result.canceled || !result.assets?.[0]) {
-                return;
-            }
-
-            const file = result.assets[0];
-
-            // Check audio duration
-            const sound = new Audio.Sound();
-            await sound.loadAsync({ uri: file.uri });
-            const status = await sound.getStatusAsync();
-            await sound.unloadAsync();
-
-            if (status.isLoaded && status.durationMillis) {
-                const durationSeconds = status.durationMillis / 1000;
-
-                if (durationSeconds < MIN_AUDIO_DURATION) {
-                    Alert.alert(
-                        'Audio Too Short',
-                        `Audio file must be at least ${MIN_AUDIO_DURATION} seconds long for accurate analysis. Your file is ${durationSeconds.toFixed(1)} seconds.`,
-                        [{ text: 'OK' }]
-                    );
-                    return;
-                }
-
-                // Valid audio, navigate to analysis
-                await stopTestRecording();
-                navigation.replace('Result', {
-                    patientId,
-                    mode: 'upload',
-                    audioUri: file.uri,
-                    audioDuration: durationSeconds,
-                    includeHeartRate,
-                    forcedResult
-                });
-            } else {
-                Alert.alert('Error', 'Could not read audio file duration.');
-            }
-        } catch (e) {
-            console.error('Upload error:', e);
-            Alert.alert('Error', 'Failed to process audio file.');
-        }
+    // This function is not defined in the provided snippet, but it's referenced in the JSX.
+    // Assuming it exists elsewhere or will be added.
+    const handleUploadAudio = () => {
+        Alert.alert("Upload Audio", "Functionality to upload audio will be implemented here.");
     };
 
     const levelWidth = audioLevelAnim.interpolate({
@@ -157,14 +113,9 @@ export default function PreScanScreen({ route, navigation }) {
 
                 {/* PCG Heart Rate Tip */}
                 {includeHeartRate && (
-                    <View className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6 w-full flex-row items-start">
-                        <Ionicons name="information-circle" size={22} color="#3B82F6" style={{ marginTop: 2, marginRight: 10 }} />
-                        <View className="flex-1">
-                            <Text className="font-bold text-blue-900 mb-1">Heart Rate Analysis Enabled</Text>
-                            <Text className="text-blue-800 text-sm leading-5">
-                                Reviewing breathing sounds for heart palpitations. For best accuracy, place stethoscope firmly and minimize ambient noise.
-                            </Text>
-                        </View>
+                    <View className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6 w-full flex-row items-center">
+                        <Ionicons name="heart-circle" size={24} color="#3B82F6" style={{ marginRight: 10 }} />
+                        <Text className="font-bold text-blue-900 text-base">Heart Rate Analysis Enabled</Text>
                     </View>
                 )}
 

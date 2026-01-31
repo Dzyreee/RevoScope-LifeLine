@@ -79,41 +79,50 @@ The app provides immediate, color-coded priority based on the Emergency Severity
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js (v18+)
-- Python (v3.9+)
-- Expo Go app on your mobile device (to test hardware integration)
+- **Node.js**: v18+ (for the frontend)
+- **Python**: v3.10+ (for the backend)
+- **Git LFS**: Required for downloading the AI model weights.
+- **Expo Go**: Install on your iOS/Android device to test hardware scanning.
 
-### Backend Setup
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Run the server:
-   ```bash
-   python api_server.py
-   ```
-   *The API will be available at `http://localhost:8000`*
+### 📥 First Time Setup (Cloning)
+If you have just cloned the repository, you **must** pull the large AI model weights using Git LFS:
+```bash
+# 1. Install & Initialize Git LFS
+git lfs install
 
-### Frontend Setup
-1. Install NPM dependencies:
-   ```bash
-   npm install
-   ```
-2. Update the API URL:
-   Edit `src/services/ApiService.js` and change `API_BASE_URL` to your local machine's IP address if testing on a physical device.
-3. Start the Expo development server:
-   ```bash
-   npx expo start
-   ```
+# 2. Download the actual AI model weights (approx 300MB)
+git lfs pull
+```
+*The weights are located at `backend/weights/respiratory_ast_best.pth`.*
+
+### 🛠️ Step 1: Start the AI Backend
+Open a terminal in the `backend/` directory:
+```bash
+cd backend
+
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the AST-optimized server
+python api_server.py
+```
+*Wait until you see: **"✓ AST model loaded"***. The API will be available at `http://localhost:8000`.
+
+### 📱 Step 2: Start the Frontend
+Open a **new** terminal in the root project folder:
+```bash
+# Install dependencies
+npm install
+
+# Start the Expo app
+npx expo start
+```
+- Press **'s'** to switch to Expo Go mode if needed.
+- Scan the QR code with your phone (using Expo Go) or run on an emulator.
 
 ---
 
@@ -129,6 +138,28 @@ The RevoScope is an original, low-cost ($<10 USD) acoustic sensor:
 - [ ] **Offline Inference**: Porting the AI model to ONNX/TensorFlow Lite for on-device analysis.
 - [ ] **Geospatial Mapping**: Visualizing disease "hot spots" for aid organizations.
 - [ ] **Multi-Language Support**: Localizing the interface for diverse global responders.
+
+---
+---
+
+## 📡 API Endpoints
+
+### POST `/analyze`
+Uploads an audio file for classification.
+- **Response**: JSON containing class prediction, confidence scores, severity score, and ESI recommendation.
+
+### GET `/health`
+Health check endpoint. Returns model loading status, accuracy, and current device (MPS/CUDA/CPU).
+
+---
+
+## 🧠 Model Architecture
+- **Model**: Audio Spectrogram Transformer (AST)
+- **Base**: `MIT/ast-finetuned-audioset-10-10-0.4593`
+- **Fine-tuning**: Custom classification head (Linear Layer)
+- **Input**: Normalized 510-length spectrogram sequences
+- **Output**: 4 classes (Normal, Crackle, Wheeze, Both)
+- **Performance**: Optimized for Apple Silicon (MPS) with ~0.1-0.3s inference latency.
 
 ---
 © 2026 RevoScope Team | LifeLines Hackathon

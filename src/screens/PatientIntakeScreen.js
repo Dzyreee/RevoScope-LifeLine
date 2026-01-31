@@ -111,6 +111,7 @@ export default function PatientIntakeScreen({ route, navigation }) {
                 sex,
                 history: history.trim(),
                 profile_image: photo,
+                include_heart_rate: includeHeartRate // Save preference
             };
 
             if (editMode && existingData?.id) {

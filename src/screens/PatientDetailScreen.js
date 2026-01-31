@@ -45,13 +45,16 @@ export default function PatientDetailScreen({ route, navigation }) {
     };
 
     const handleNewScan = () => {
-        navigation.navigate('PreScan', { patientId });
+        navigation.navigate('PreScan', {
+            patientId,
+            includeHeartRate: !!history.patient.include_heart_rate
+        });
     };
 
     if (!history) return <View className="flex-1 bg-white" />;
 
     const { patient, scans } = history;
-    const { full_name, age, sex, history: medicalHistory, profile_image, severity_score, confidence_score, heart_rate } = patient;
+    const { full_name, age, sex, history: medicalHistory, profile_image, severity_score, confidence_score, heart_rate, include_heart_rate } = patient;
 
     // Severity Color Logic
     let severityColor = "#10B981";
@@ -133,15 +136,15 @@ export default function PatientDetailScreen({ route, navigation }) {
                         <Text className="text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Severity</Text>
                         <Text className="text-3xl font-bold" style={{ color: severityColor }}>{severity_score}%</Text>
                     </View>
-                    <View className="flex-1 p-4 rounded-xl bg-white border border-gray-100 items-center">
-                        <Text className="text-xs font-bold uppercase tracking-wider mb-1 text-gray-400">Confidence</Text>
+                    <View className="flex-1 px-1 py-4 rounded-xl bg-white border border-gray-100 items-center">
+                        <Text className="text-[10px] font-bold uppercase tracking-normal mb-1 text-gray-400" numberOfLines={1} adjustsFontSizeToFit>Confidence</Text>
                         <Text className="text-3xl font-bold text-gray-700">{confidence_score}%</Text>
                     </View>
-                    {heart_rate && (
-                        <View className="flex-1 p-4 rounded-xl bg-blue-50 border border-blue-200 items-center">
-                            <Text className="text-xs font-bold uppercase tracking-wider mb-1 text-blue-500">Heart Rate</Text>
-                            <Text className="text-3xl font-bold text-blue-600">{heart_rate}</Text>
-                            <Text className="text-xs text-blue-500">BPM</Text>
+                    {(heart_rate || include_heart_rate) && (
+                        <View className="flex-1 px-1 py-4 rounded-xl bg-blue-50 border border-blue-200 items-center">
+                            <Text className="text-[10px] font-bold uppercase tracking-normal mb-1 text-blue-500" numberOfLines={1} adjustsFontSizeToFit>Heart Rate</Text>
+                            <Text className="text-3xl font-bold text-blue-600">{heart_rate || '--'}</Text>
+                            <Text className="text-[10px] text-blue-500">BPM</Text>
                         </View>
                     )}
                 </View>

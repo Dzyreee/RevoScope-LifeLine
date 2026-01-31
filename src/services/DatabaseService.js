@@ -80,6 +80,12 @@ export const initDB = async () => {
   } catch (e) {
     // Ignore if already exists
   }
+  // Migration: Add include_heart_rate column if it doesn't exist
+  try {
+    await database.execAsync(`ALTER TABLE patients ADD COLUMN include_heart_rate INTEGER DEFAULT 0;`);
+  } catch (e) {
+    // Ignore if already exists
+  }
 };
 
 const hashPassword = async (password) => {
@@ -130,11 +136,11 @@ export const loginUser = async (email, password) => {
 };
 
 export const addPatient = async (patient) => {
-  const { full_name, age, sex, history, profile_image, heart_rate, severity_score, confidence_score, esi_level, triage_advice } = patient;
+  const { full_name, age, sex, history, profile_image, heart_rate, severity_score, confidence_score, esi_level, triage_advice, include_heart_rate } = patient;
   const database = await getDB();
   const result = await database.runAsync(
-    `INSERT INTO patients (full_name, age, sex, history, profile_image, heart_rate, severity_score, confidence_score, esi_level, triage_advice) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-    [full_name, age, sex, history, profile_image, heart_rate || null, severity_score || 0, confidence_score || 0, esi_level || 5, triage_advice || '']
+    `INSERT INTO patients (full_name, age, sex, history, profile_image, heart_rate, severity_score, confidence_score, esi_level, triage_advice, include_heart_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    [full_name, age, sex, history, profile_image, heart_rate || null, severity_score || 0, confidence_score || 0, esi_level || 5, triage_advice || '', include_heart_rate ? 1 : 0]
   );
   return result.lastInsertRowId;
 };
@@ -173,11 +179,11 @@ export const deletePatient = async (patientId) => {
 };
 
 export const updatePatient = async (patientId, updates) => {
-  const { full_name, age, sex, history, profile_image, heart_rate } = updates;
+  const { full_name, age, sex, history, profile_image, heart_rate, include_heart_rate } = updates;
   const database = await getDB();
   await database.runAsync(
-    `UPDATE patients SET full_name = ?, age = ?, sex = ?, history = ?, profile_image = ?, heart_rate = ? WHERE id = ?`,
-    [full_name, age, sex, history, profile_image, heart_rate || null, patientId]
+    `UPDATE patients SET full_name = ?, age = ?, sex = ?, history = ?, profile_image = ?, heart_rate = ?, include_heart_rate = ? WHERE id = ?`,
+    [full_name, age, sex, history, profile_image, heart_rate || null, include_heart_rate ? 1 : 0, patientId]
   );
 };
 
